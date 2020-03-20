@@ -13,35 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 
-
-#define ACCESS_TOKEN_SIZE 128
-
-int ClientInfo::client_count = 0;
-
 ClientInfo::ClientInfo() {
-    id = client_count++;
-    availability = true;
-}
-
-ClientInfo::ClientInfo(int sock) {
-    id = 1000 + client_count++;
-    socket = sock;
-    availability = true;
-    opponent_id = -1;
-    username = "";
-    password = -1;
-}
-
-bool ClientInfo::is_available() {
-    return availability;
-}
-
-void ClientInfo::set_socket(int sock) {
-    socket = sock;
-}
-
-int ClientInfo::get_socket() {
-    return socket;
 }
 
 void ClientInfo::set_id(int new_id) {
@@ -50,14 +22,6 @@ void ClientInfo::set_id(int new_id) {
 
 int ClientInfo::get_id() {
     return id;
-}
-
-void ClientInfo::set_session_id(int sid) {
-    session_id = sid;
-}
-
-int ClientInfo::get_session_id() {
-    return session_id;
 }
 
 void ClientInfo::set_username(string name) {
@@ -92,6 +56,7 @@ string ClientInfo::get_picture_url() {
     return picture_url;
 }
 
+#if 0
 int ClientInfo::listen(void) {
     thread ti(&ClientInfo::listen_user, this);
     
@@ -413,3 +378,4 @@ void ClientInfo::login() {
 void ClientInfo::logout() {
     Server::get_instance()->logout(id);
 }
+#endif

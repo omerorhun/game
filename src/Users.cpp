@@ -13,6 +13,8 @@
 #define FACEBOOK_TOKEN_SIZE 128
 
 static size_t write_func(void *ptr, size_t size, size_t count, void *stream);
+std::string read_file(const char *file_name);
+
 Users *Users::p_instance = NULL;
 
 Users::Users() {
@@ -24,7 +26,7 @@ Users *Users::get_instance() {
     return p_instance;
 }
 
-ErrorUsers Users::register_user(ClientInfo *client, std::string access_token) {
+ErrorUsers Users::register_user(int *client_id, std::string access_token) {
     ErrorUsers err = ERR_USERS_SUCCESS;
     // get user data from facebook
     std::cout << "waiting response from facebook..." << std::endl;
@@ -47,24 +49,24 @@ ErrorUsers Users::register_user(ClientInfo *client, std::string access_token) {
     std::string user_name = user_data["name"];
     std::string user_url = user_data["picture"]["data"]["url"];
     
-    // refresh client info
-    client->set_fb_id(fb_id);
-    client->set_picture_url(user_url);
-    client->set_username(user_name);
+    // Token verificated, then sign up or login
+    // Create new session
+    UserInfo user_info;
+    user_info.fb_id = fb_id;
+    user_info.username = user_name;
+    user_info.picture_url = user_url;
     
     // check user if registered
     std::ifstream input_stream;
     std::stringstream buffer;
     
     input_stream.open("registry.json", std::ifstream::binary);
-    
     if (input_stream.is_open()) {
         buffer << input_stream.rdbuf();
         input_stream.close();
     }
     
     nlohmann::json all_users_json;
-    
     try {
          all_users_json = nlohmann::json::parse(buffer.str());
     }
@@ -72,39 +74,41 @@ ErrorUsers Users::register_user(ClientInfo *client, std::string access_token) {
         std::cerr << "parse error" << std::endl;
     }
     
-    // register if not
+    // lookup for the user
     int loc = -1;
     if ((loc = user_lookup(fb_id, all_users_json)) == -1) {
-        // user not found
+        // user not found, new registry
         nlohmann::json new_user;
         
         // TODO: Determine client's id
-        client->set_id(all_users_json.size() + 1);
+        user_info.id = all_users_json.size() + 1;
         
-        new_user["id"] = client->get_id();
-        new_user["fb_id"] = client->get_fb_id();
-        new_user["name"] = client->get_username();
-        new_user["url"] = client->get_picture_url();
+        new_user["id"] = user_info.id;
+        new_user["fb_id"] = user_info.fb_id;
+        new_user["name"] = user_info.username;
+        new_user["url"] = user_info.picture_url;
         all_users_json["users"].push_back(new_user);
         
         std::ofstream output("registry.json", std::ios_base::in | std::ios_base::out | std::ios_base::trunc);
         output << all_users_json.dump();
         output.close();
         
-        std::cout << client->get_username() << " registered ["<< client->get_id() << "]" << std::endl;
+        std::cout << user_info.username << " registered ["<< user_info.id << "]" << std::endl;
         err = ERR_USERS_SIGNUP_SUCCESS;
     }
     else {
         // else login
         nlohmann::json user = all_users_json["users"].at(loc);
         std::string name = user["name"];
-        client->set_id(user["id"]);
+        
+        user_info.id = user["id"];
         std::string url = user["url"];
-        std::cout << client->get_username() << " logged in ["<< client->get_id() << "]" << std::endl;
+        std::cout << user_info.username << " logged in ["<< user_info.id << "]" << std::endl;
         
         err = ERR_USERS_LOGIN_SUCCESS;
     }
     
+    *client_id = user_info.id;
     return err;
 }
 
@@ -134,7 +138,8 @@ nlohmann::json Users::get_user_data_from_facebook(std::string access_token) {
     headers = curl_slist_append(headers, "content-type: application/x-www-form-urlencoded");
     curl_easy_setopt(hnd, CURLOPT_HTTPHEADER, headers);
     
-    std::string fields = "fields="FACEBOOK_GRAPH_REQ_FIELDS;
+    std::string fields("fields=");
+    fields.append(FACEBOOK_GRAPH_REQ_FIELDS);
     std::string token = "&access_token=";
     token.append(access_token);
     

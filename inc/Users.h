@@ -2,7 +2,7 @@
 #define _USERS_H_
 
 #include "json.hpp"
-#include "ClientInfo.h"
+#include <string>
 
 typedef enum {
     ERR_FB_SUCCESS,
@@ -17,15 +17,22 @@ typedef enum {
     ERR_USERS_FB,
 }ErrorUsers;
 
+typedef struct {
+    int id;
+    int opponent_id;
+    std::string username;
+    long fb_id;
+    std::string picture_url;
+    }UserInfo;
+
 class Users {
     
     public:
-    
     static Users *p_instance;
     static Users *get_instance();
     Users();
     bool login_with_facebook(int access_token);
-    ErrorUsers register_user(ClientInfo *client, std::string access_token);
+    ErrorUsers register_user(int *client_id, std::string access_token);
     bool erase_user();
     nlohmann::json get_user_data(int client_id);
     nlohmann::json get_user_data_from_facebook(std::string access_token);

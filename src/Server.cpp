@@ -11,6 +11,7 @@
 
 #include "Server.h"
 #include "ClientInfo.h"
+#include "Sessions.h"
 
 //using namespace std;
 
@@ -170,6 +171,7 @@ bool Server::is_client_online(int uid) {
 mutex mtx_waiting;
 
 int Server::login(int uid) {
+    
     mtx_waiting.lock();
     online_clients.push_back(uid);
     mtx_waiting.unlock();
@@ -210,4 +212,8 @@ void Server::print_client_status(sockaddr_in client) {
     return;
 }
 
-
+void Server::create_session(int client_id) {
+    Sessions session;
+    // TODO: add new session to the queue
+    
+}
