@@ -5,7 +5,7 @@
 class Jwt {
     public:
     Jwt(std::string token, std::string key);
-    Jwt(std::string username, long expire, std::string key);
+    Jwt(long user_id, long expire, std::string key);
     std::string get_token();
     bool verify();
     

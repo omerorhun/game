@@ -7,8 +7,8 @@ LIBS= -lpthread -pthread -lcurl -lcrypto -lssl
 
 all: server
 
-server: ./obj/main.o ./obj/ClientInfo.o ./obj/Server.o ./obj/Users.o
-	$(CXX) $(CFLAGS) ./obj/main.o ./obj/ClientInfo.o ./obj/Server.o ./obj/Users.o $(LIBS) -o server 
+server: ./obj/main.o ./obj/ClientInfo.o ./obj/Server.o ./obj/Users.o ./obj/Protocol.o
+	$(CXX) $(CFLAGS) ./obj/main.o ./obj/ClientInfo.o ./obj/Server.o ./obj/Users.o ./obj/Protocol.o $(LIBS) -o server 
 
 ./obj/main.o: ./src/main.cpp ./inc/Server.h ./inc/Users.h
 	$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/main.cpp -o ./obj/main.o
@@ -26,7 +26,10 @@ server: ./obj/main.o ./obj/ClientInfo.o ./obj/Server.o ./obj/Users.o
 	$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Jwt.cpp -o ./obj/Jwt.o
 
 ./obj/base64.o: ./src/base64.cpp ./inc/base64.h 
-	g++ $(CFLAGS) ./src/base64.cpp -o ./obj/base64.o
+	$(CXX) $(CFLAGS) -c -g ./src/base64.cpp -o ./obj/base64.o
+
+./obj/Protocol.o: ./src/Protocol.cpp ./inc/Protocol.h
+	$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Protocol.cpp -o ./obj/Protocol.o
 
 clean:
 	rm -rf ./obj/*.o server

@@ -17,13 +17,13 @@ Jwt::Jwt(string token, string key) {
     this->decode();
 }
 
-Jwt::Jwt(string username, long expire, string key) {
+Jwt::Jwt(long user_id, long expire, string key) {
     nlohmann::json header = {{"alg", "HS256"},{"typ", "JWT"}};
     
     _header.append(header.dump());
     
     nlohmann::json payload_json;
-    payload_json["username"] = username;
+    payload_json["id"] = user_id;
     payload_json["expire"] = expire;
     
     _payload = payload_json.dump();

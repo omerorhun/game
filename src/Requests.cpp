@@ -5,6 +5,8 @@
 #include "Requests.h"
 #include "Server.h"
 #include "Users.h"
+#include "Jwt.h"
+#include "Protocol.h"
 
 // socket
 #include <sys/types.h>
@@ -19,8 +21,8 @@ Requests::Requests(int sock) {
 }
 
 void Requests::get_request() {
-    if (recv(socket, rx_buffer, RX_BUFFER_SIZE, 0) == -1) {
-        cerr << "ERROR GET REQUEST" << endl;
+    if (!_in_packet.receive_packet(socket)) {
+        cerr << "ERROR RECEIVE PACKET" << endl;
         return;
     }
     
@@ -31,41 +33,122 @@ void Requests::get_request() {
         return;
     }
     
-    length = GET_LENGTH(rx_buffer);
-    req_code = GET_REQUEST_CODE(rx_buffer);
-    
     // handle request
     handle_request();
     
     // send response
+    _out_packet.send_packet();
+}
+
+RequestErrorCodes Requests::check_request() {
+    RequestErrorCodes ret = ERR_REQ_UNKNOWN;
+    
+    // check header
+    if (_in_packet.get_header() != REQUEST_HEADER)
+        return ERR_REQ_WRONG_HEADER;
+    
+    // check crc
+    if (!_in_packet.check_crc())
+        return ERR_REQ_CRC;
+    
+    return ERR_REQ_SUCCESS;
+}
+
+bool Requests::check_request_code() {
+    if (_in_packet.get_request_code() < REQ_COUNT)
+        return true;
+    
+    return false;
 }
 
 void Requests::handle_request() {
-    char *request = this->rx_buffer;
     Server *srv = Server::get_instance();
     Users *users = Users::get_instance();
+    RequestCodes req_code = (RequestCodes)_in_packet.get_request_code();
     
-    cout << "Request code: " << this->req_code << endl;
+    cout << "Request code: " << req_code << endl;
     
+    _out_packet.set_header(REQUEST_HEADER);
     if (req_code == REQ_FB_LOGIN) {
-        strncpy(token, (const char *)&rx_buffer[4], 128);
+        // TODO: test this request
+        string fb_token = _in_packet.get_data();
+        _in_packet.free_buffer();
+        
         int client_id;
-        ErrorUsers ret = users->register_user(&client_id, string(token));
+        ErrorUsers ret = users->register_user(&client_id, fb_token);
         switch (ret) {
             case ERR_USERS_SIGNUP_SUCCESS:
-                login(client_id);
-                strcpy(tx_buffer, "Signed up\r\n");
-                break;
             case ERR_USERS_LOGIN_SUCCESS:
+            {
+                _out_packet.set_request_code(REQ_FB_LOGIN_SUCCES);
+                
                 login(client_id);
-                strcpy(tx_buffer, "Logged in\r\n");
+                time_t start_dt;
+                time(&start_dt);
+                Jwt token(client_id, start_dt, jwt_key);
+                
+                _out_packet.add_data(token.get_token());
+                _out_packet.set_crc();
                 break;
+            }
             case ERR_USERS_FB:
-                strcpy(tx_buffer, "Error\r\n");
+                _out_packet.set_request_code(REQ_FB_LOGIN_FAIL);
+                _out_packet.set_crc();
                 break;
         }
-        
     }
+    else if (req_code == REQ_GET_ONLINE_USERS) {
+        // TODO: test this request
+        if (_in_packet.get_length() != GET_ONLINE_USERS_LEN) {
+            _in_packet.free_buffer();
+            prepare_error_packet(ERR_REQ_WRONG_LENGTH);
+            return;
+        }
+        
+        _in_packet.free_buffer();
+        
+        _out_packet.set_request_code(REQ_GET_ONLINE_USERS_SUCCESS);
+        
+        // get online users
+        vector<int> onl_cli = srv->get_online_clients();
+        
+        // put to _out_packet
+        
+        // add count
+        uint8_t buffer[2];
+        buffer[0] = B0(onl_cli.size());
+        buffer[1] = B1(onl_cli.size());
+        _out_packet.add_data(buffer, 2);
+        
+        // add client ids
+        for (uint16_t i = 0; i < onl_cli.size(); i++) {
+            uint8_t buffer[2];
+            buffer[0] = B0(onl_cli[i]);
+            buffer[1] = B1(onl_cli[i]);
+            buffer[2] = B2(onl_cli[i]);
+            buffer[3] = B3(onl_cli[i]);
+            _out_packet.add_data(buffer, 4);
+        }
+        
+        _out_packet.set_crc();
+    }
+    else {
+        // unknown request received
+        _in_packet.free_buffer();
+        prepare_error_packet(ERR_REQ_WRONG_REQ_CODE);
+    }
+    
+    
+    return;
+}
+
+void Requests::prepare_error_packet(RequestErrorCodes err) {
+    _out_packet.set_request_code(REQ_ERROR);
+    string errcode = to_string(err);
+    _out_packet.add_data(errcode);
+    _out_packet.set_crc();
+}
+
 #if 0
     else if (req_code == REQ_GET_ONLINE_USERS) {
         data = (char *)malloc(sizeof(char) * )
@@ -268,59 +351,11 @@ void Requests::handle_request() {
     else if (state == TEST) {
         
     }
-    #endif
-    
+#endif
 
-    return;
-
-}
-
-RequestErrorCodes Requests::check_request() {
-    RequestErrorCodes ret = ERR_REQ_UNKNOWN;
-    char *req = &rx_buffer[0];
-    
-    // check header
-    if (rx_buffer[0] != REQUEST_HEADER) {
-        return ERR_REQ_WRONG_HEADER;
-    }
-    
-    // TODO: check request code
-    if (!check_request_code()) {
-        return ERR_REQ_WRONG_REQ_CODE;
-    }
-    
-    // TODO: check length
-    if (!check_length()) {
-        return ERR_REQ_WRONG_LENGTH;
-    }
-    
-    // TODO: check crc
-    
-    return ERR_REQ_SUCCESS;
-}
-
-bool Requests::check_length() {
-    for (int i = 0; i < REQ_COUNT; i++) {
-        if ((lengths[i][0] == GET_REQUEST_CODE(rx_buffer)) && 
-                (lengths[i][1] == GET_LENGTH(rx_buffer))) {
-            return true;
-        }
-    }
-    
-    return false;
-}
-
-bool Requests::check_request_code() {
-    for (int i = 0; i < REQ_COUNT; i++) {
-        if (rx_buffer[3] == i) return true;
-    }
-    
-    return false;
-}
 
 void Requests::login(int client_id) {
     //login
     Server::get_instance()->login(client_id);
-    Server::get_instance()->create_session(client_id);
 }
 

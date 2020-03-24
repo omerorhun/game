@@ -212,8 +212,3 @@ void Server::print_client_status(sockaddr_in client) {
     return;
 }
 
-void Server::create_session(int client_id) {
-    Sessions session;
-    // TODO: add new session to the queue
-    
-}

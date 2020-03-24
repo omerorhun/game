@@ -6,8 +6,6 @@
 
 using namespace std;
 
-#define RX_BUFFER_SIZE 1024
-
 class ClientInfo {
     
     public:

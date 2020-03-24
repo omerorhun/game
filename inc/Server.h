@@ -17,7 +17,6 @@ class Server {
     int wait_clients();
     void handle_client(int sock);
     
-    void create_session(int client_id);
     int add_client(int client_id);
     int add_client_to_waiting_list(int client_id);
     int login(int client_id);

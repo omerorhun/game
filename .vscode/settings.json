@@ -3,6 +3,7 @@
         "istream": "cpp",
         "ostream": "cpp",
         "streambuf": "cpp",
-        "*.tcc": "cpp"
+        "*.tcc": "cpp",
+        "system_error": "cpp"
     }
 }
