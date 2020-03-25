@@ -11,7 +11,7 @@
 
 #include "Server.h"
 #include "ClientInfo.h"
-#include "Sessions.h"
+#include "Requests.h"
 
 //using namespace std;
 
@@ -79,13 +79,11 @@ int Server::wait_clients() {
 }
 
 void Server::handle_client(int sock) {
-    ClientInfo client(sock);
+    Requests request(sock);
     
-    cout << "[sesion id:" << client.get_session_id() << "]" << endl;
-    // add a message box for this client
-    add_messagebox(client.get_session_id());
-    
-    client.listen();
+    request.get_request();
+    request.handle_request();
+    request.send_response();
 }
 
 Server *Server::get_instance() {

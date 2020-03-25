@@ -20,6 +20,10 @@ Requests::Requests(int sock) {
     socket = sock;
 }
 
+void Requests::send_response() {
+    _out_packet.send_packet(socket);
+}
+
 void Requests::get_request() {
     if (!_in_packet.receive_packet(socket)) {
         cerr << "ERROR RECEIVE PACKET" << endl;
@@ -32,12 +36,6 @@ void Requests::get_request() {
         cerr << "ERROR CODE: " << ret << endl;
         return;
     }
-    
-    // handle request
-    handle_request();
-    
-    // send response
-    _out_packet.send_packet();
 }
 
 RequestErrorCodes Requests::check_request() {
@@ -80,7 +78,9 @@ void Requests::handle_request() {
             case ERR_USERS_SIGNUP_SUCCESS:
             case ERR_USERS_LOGIN_SUCCESS:
             {
-                _out_packet.set_request_code(REQ_FB_LOGIN_SUCCES);
+                _out_packet.set_request_code(REQ_FB_LOGIN);
+                uint8_t data = ACK;
+                _out_packet.add_data(&data, 1);
                 
                 login(client_id);
                 time_t start_dt;
@@ -92,7 +92,9 @@ void Requests::handle_request() {
                 break;
             }
             case ERR_USERS_FB:
-                _out_packet.set_request_code(REQ_FB_LOGIN_FAIL);
+                _out_packet.set_request_code(REQ_FB_LOGIN);
+                uint8_t data = NACK;
+                _out_packet.add_data(&data, 1);
                 _out_packet.set_crc();
                 break;
         }
@@ -101,14 +103,17 @@ void Requests::handle_request() {
         // TODO: test this request
         if (_in_packet.get_length() != GET_ONLINE_USERS_LEN) {
             _in_packet.free_buffer();
+            uint8_t nack = NACK;
+            _out_packet.add_data(&nack, 1);
             prepare_error_packet(ERR_REQ_WRONG_LENGTH);
             return;
         }
         
         _in_packet.free_buffer();
         
-        _out_packet.set_request_code(REQ_GET_ONLINE_USERS_SUCCESS);
-        
+        _out_packet.set_request_code(REQ_GET_ONLINE_USERS);
+        uint8_t ack = ACK;
+        _out_packet.add_data(&ack, 1);
         // get online users
         vector<int> onl_cli = srv->get_online_clients();
         
@@ -137,7 +142,6 @@ void Requests::handle_request() {
         _in_packet.free_buffer();
         prepare_error_packet(ERR_REQ_WRONG_REQ_CODE);
     }
-    
     
     return;
 }
