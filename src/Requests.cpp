@@ -24,22 +24,48 @@ void Requests::send_response() {
     _out_packet.send_packet(socket);
 }
 
-void Requests::get_request() {
+ErrorInfo Requests::get_request(RequestCodes *p_req_code, string *p_indata) {
+    ErrorInfo err = {ERR_SUCCESS, ERR_SUB_SUCCESS};
+    
     if (!_in_packet.receive_packet(socket)) {
         cerr << "ERROR RECEIVE PACKET" << endl;
-        return;
+        err.code = ERR_REQ_CONNECTION;
+        return err;
     }
     
     // check request
-    RequestErrorCodes ret = check_request();
+    ErrorCodes ret = check_request();
     if (ret != ERR_REQ_SUCCESS) {
         cerr << "ERROR CODE: " << ret << endl;
-        return;
+        return ret;
     }
+    
+    *p_req_code = (RequestCodes)_in_packet.get_request_code();
+    *p_indata = _in_packet.get_data();
+    
+    _in_packet.free_buffer(); // i wont use receiving buffer from now, free.
+    
+    return ERR_REQ_SUCCESS;
 }
 
-RequestErrorCodes Requests::check_request() {
-    RequestErrorCodes ret = ERR_REQ_UNKNOWN;
+void Requests::handle_request() {
+    RequestCodes req_code;
+    string indata;
+    
+    ErrorInfo ret = get_request(&req_code, &indata);
+    if (ret.code == ERR_REQ_SUCCESS) {
+        ret = interpret_request(req_code, indata);
+    }
+    
+    if (ret.code != ERR_REQ_SUCCESS) {
+        prepare_error_packet(ret);
+    }
+    
+    send_response();
+}
+
+ErrorCodes Requests::check_request() {
+    ErrorCodes ret = ERR_REQ_UNKNOWN;
     
     // check header
     if (_in_packet.get_header() != REQUEST_HEADER)
@@ -48,6 +74,9 @@ RequestErrorCodes Requests::check_request() {
     // check crc
     if (!_in_packet.check_crc())
         return ERR_REQ_CRC;
+    
+    if (!_in_packet.check_token(jwt_key))
+        return ERR_REQ_WRONG_TOKEN;
     
     return ERR_REQ_SUCCESS;
 }
@@ -59,65 +88,61 @@ bool Requests::check_request_code() {
     return false;
 }
 
-void Requests::handle_request() {
+ErrorInfo Requests::interpret_request(RequestCodes req_code, string indata) {
     Server *srv = Server::get_instance();
     Users *users = Users::get_instance();
-    RequestCodes req_code = (RequestCodes)_in_packet.get_request_code();
+    ErrorInfo ret = {ERR_REQ_SUCCESS, ERR_SUB_SUCCESS};
     
     cout << "Request code: " << req_code << endl;
     
     _out_packet.set_header(REQUEST_HEADER);
     if (req_code == REQ_FB_LOGIN) {
         // TODO: test this request
-        string fb_token = _in_packet.get_data();
-        _in_packet.free_buffer();
+        string fb_token = indata;
         
         int client_id;
-        ErrorUsers ret = users->register_user(&client_id, fb_token);
-        switch (ret) {
+        ret = users->register_user(&client_id, fb_token);
+        switch (ret.user) {
             case ERR_USERS_SIGNUP_SUCCESS:
             case ERR_USERS_LOGIN_SUCCESS:
             {
                 _out_packet.set_request_code(REQ_FB_LOGIN);
-                uint8_t data = ACK;
-                _out_packet.add_data(&data, 1);
+                
+                uint8_t ack = ACK;
+                _out_packet.add_data(&ack, 1);
+                
+                time_t start_dt = time(NULL); // get current dt
+                Jwt token(client_id, start_dt, jwt_key);
+                _out_packet.add_data(token.get_token());
                 
                 login(client_id);
-                time_t start_dt;
-                time(&start_dt);
-                Jwt token(client_id, start_dt, jwt_key);
-                
-                _out_packet.add_data(token.get_token());
-                _out_packet.set_crc();
                 break;
             }
             case ERR_USERS_FB:
                 _out_packet.set_request_code(REQ_FB_LOGIN);
-                uint8_t data = NACK;
-                _out_packet.add_data(&data, 1);
-                _out_packet.set_crc();
+                uint8_t ack = NACK;
+                _out_packet.add_data(&ack, 1);
+                // TODO: add error code
+                ret.code = ERR_REQ_LOGIN;
                 break;
         }
     }
     else if (req_code == REQ_GET_ONLINE_USERS) {
         // TODO: test this request
-        if (_in_packet.get_length() != GET_ONLINE_USERS_LEN) {
-            _in_packet.free_buffer();
+        if (indata.size() == 0) {
             uint8_t nack = NACK;
             _out_packet.add_data(&nack, 1);
             prepare_error_packet(ERR_REQ_WRONG_LENGTH);
+            
+            
             return;
         }
-        
-        _in_packet.free_buffer();
         
         _out_packet.set_request_code(REQ_GET_ONLINE_USERS);
         uint8_t ack = ACK;
         _out_packet.add_data(&ack, 1);
         // get online users
         vector<int> onl_cli = srv->get_online_clients();
-        
-        // put to _out_packet
         
         // add count
         uint8_t buffer[2];
@@ -135,18 +160,19 @@ void Requests::handle_request() {
             _out_packet.add_data(buffer, 4);
         }
         
-        _out_packet.set_crc();
+        
     }
     else {
         // unknown request received
-        _in_packet.free_buffer();
         prepare_error_packet(ERR_REQ_WRONG_REQ_CODE);
     }
+    
+    _out_packet.set_crc();
     
     return;
 }
 
-void Requests::prepare_error_packet(RequestErrorCodes err) {
+void Requests::prepare_error_packet(ErrorCodes err) {
     _out_packet.set_request_code(REQ_ERROR);
     string errcode = to_string(err);
     _out_packet.add_data(errcode);

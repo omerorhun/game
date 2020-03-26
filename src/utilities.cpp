@@ -4,7 +4,7 @@
 
 #include "utilities.h"
 
-void print_hex(char *header, char *buffer, uint16_t len) {
+void print_hex(const char *header, char *buffer, uint16_t len) {
     
     printf("[%s]: (%d)\n", header, len);
     printf("---------------------------------------------------\n");

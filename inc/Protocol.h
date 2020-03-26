@@ -9,26 +9,27 @@
 #define B3(x)               (((x)>>24) & 0xFF)
 
 #define RX_BUFFER_SIZE 1024
+#define TOKEN_SIZE 142
 
 #define PROTOCOL_HEADER 0x01
 
-#define LENGTH_LOW_POS 1
-#define LENGTH_HIGH_POS 2
-#define REQUEST_CODE_POS 3
-#define DATA_START_POS 4
+#define PKT_LENGTH_LOW        1
+#define PKT_LENGTH_HIGH       2
+#define PKT_REQUEST_CODE      3
+#define PKT_TOKEN             4
+#define PKT_IN_DATA_START   (PKT_TOKEN + TOKEN_SIZE)
+#define PKT_OUT_DATA_START    4
 
-#define GET_LENGTH(p) (uint16_t)(((p[1] << 0) & 0xff) + \
-                                ((p[2] << 8) & 0xff00))
+#define GET_LENGTH(p) (uint16_t)(((p[PKT_LENGTH_LOW] << 0) & 0xff) + \
+                                ((p[PKT_LENGTH_HIGH] << 8) & 0xff00))
 
 #define GET_REQUEST_CODE(p) p[3]
 
 uint16_t gen_crc16(const uint8_t *data, uint16_t size);
 void print_hex(char *header, char *buffer, uint16_t len);
 
-struct ProtocolCrcException : public std::exception
-{
-	const char * what () const throw ()
-    {
+struct ProtocolCrcException : public std::exception {
+	const char * what () const throw () {
     	return "Crc values doesn't match!";
     }
 };
@@ -47,6 +48,7 @@ class Protocol {
   void send_packet(int sock);
   bool receive_packet(int sock);
   bool check_crc();
+  bool check_token(std::string key);
   
   std::string get_data();
   uint8_t *get_buffer();

@@ -28,17 +28,16 @@ Users *Users::get_instance() {
     return p_instance;
 }
 
-ErrorUsers Users::register_user(int *client_id, string access_token) {
-    ErrorUsers err = ERR_USERS_SUCCESS;
+ErrorInfo Users::register_user(int *client_id, string access_token) {
+    ErrorInfo err;
     // get user data from facebook
     cout << "waiting response from facebook..." << endl;
     nlohmann::json user_data = get_user_data_from_facebook(access_token);
     cout << "response: " << user_data.dump() << endl << endl;
     
-    ErrorFacebook ret;
-    if ((ret = check_errors(user_data)) != ERR_FB_SUCCESS) {
-        cout << "Error code: " << ret << endl;
-        err = ERR_USERS_FB;
+    err = check_errors(user_data);
+    if (err.code != ERR_FB_SUCCESS) {
+        cout << "Error code: " << err.code << endl;
         return err;
     }
     
@@ -193,8 +192,8 @@ string read_file(const char *file_name) {
     return buffer.str();
 }
 
-ErrorFacebook Users::check_errors(nlohmann::json response_json) {
-    ErrorFacebook ret = ERR_FB_SUCCESS;
+ErrorInfo Users::check_errors(nlohmann::json response_json) {
+    uint16_t ret;
     
     if (response_json.find("error") != response_json.end()) {
         int fb_code = response_json["error"]["code"];

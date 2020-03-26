@@ -15,6 +15,7 @@ class Jwt {
     std::string _signature;
     std::string _key;
     std::string _token;
+    bool _is_valid;
     
     std::string sign_packet();
     std::string generate_token();

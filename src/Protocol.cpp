@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "Protocol.h"
+#include "Jwt.h"
 #include "utilities.h"
 
 using namespace std;
@@ -29,7 +30,7 @@ Protocol::Protocol(uint8_t *buffer) {
     _length = _data_length + 5; // 1(header) + 2(length) + 2(crc)
     
     // check crc
-    uint16_t crc = gen_crc16(&_buffer[REQUEST_CODE_POS], _data_length);
+    uint16_t crc = gen_crc16(&_buffer[PKT_REQUEST_CODE], _data_length);
     if (crc != get_crc()) {
         throw ProtocolCrcException();
         return;
@@ -57,7 +58,8 @@ bool Protocol::receive_packet(int sock) {
     _data_length = GET_LENGTH(_buffer);
     _length = _data_length + 5; // 1(header) + 2(length) + 2(crc)
     
-    print_hex("rx packet", (char *)_buffer, _length);
+    const char header[] = "rx packet";
+    print_hex(header, (char *)_buffer, _length);
     
     return true;
 }
@@ -66,10 +68,9 @@ bool Protocol::check_crc() {
     if (_buffer == NULL)
         return 0;
     
-    uint16_t crc = gen_crc16(&_buffer[REQUEST_CODE_POS], _data_length);
-    if (crc != get_crc()) {
+    uint16_t crc = gen_crc16(&_buffer[PKT_REQUEST_CODE], _data_length);
+    if (crc != get_crc())
         return false;
-    }
     
     return true;
 }
@@ -94,17 +95,18 @@ uint16_t Protocol::get_length() {
 }
 
 void Protocol::free_buffer() {
-    //if (_buffer != NULL) {
+    if (_buffer != NULL) {
         free(_buffer);
         _buffer = NULL;
-    //}
+    }
 }
 
 void Protocol::send_packet(int sock) {
     if (_buffer == NULL)
         return;
     
-    print_hex("tx packet", (char *)_buffer, _length);
+    const char header[] = "tx packet";
+    print_hex(header, (char *)_buffer, _length);
     send(sock, _buffer, _length, 0);
 }
 
@@ -125,7 +127,7 @@ bool Protocol::set_header(uint8_t header) {
 }
 
 uint8_t Protocol::get_request_code() {
-    return _buffer[REQUEST_CODE_POS];
+    return _buffer[PKT_REQUEST_CODE];
 }
 
 bool Protocol::set_request_code(uint8_t code) {
@@ -150,11 +152,20 @@ uint8_t *Protocol::get_buffer() {
     return _buffer;
 }
 
+bool Protocol::check_token(string key) {
+    string indata((char *)&_buffer[PKT_TOKEN]);
+    Jwt tkn(indata, key);
+    if (!tkn.verify())
+        return false;
+    
+    return true;
+}
+
 string Protocol::get_data() {
     if (_buffer == NULL)
         return string("");
     
-    return string((char *)&_buffer[DATA_START_POS], _data_length - 1);
+    return string((char *)&_buffer[PKT_IN_DATA_START], _data_length - 1);
 }
 
 bool Protocol::add_data(string data) {
@@ -200,7 +211,7 @@ bool Protocol::set_crc() {
     if (_buffer == NULL)
         return false;
     
-    uint16_t crc16 = gen_crc16(&_buffer[REQUEST_CODE_POS], _data_length);
+    uint16_t crc16 = gen_crc16(&_buffer[PKT_REQUEST_CODE], _data_length);
     uint8_t *tmp = (uint8_t *)realloc(_buffer, sizeof(char) * (_length + 2));
 
     if (tmp == NULL)
@@ -225,6 +236,6 @@ void Protocol::set_length() {
     if (_buffer == NULL)
         return;
     
-    _buffer[LENGTH_LOW_POS] = B0(_data_length);
-    _buffer[LENGTH_HIGH_POS] = B1(_data_length);
+    _buffer[PKT_LENGTH_LOW] = B0(_data_length);
+    _buffer[PKT_LENGTH_HIGH] = B1(_data_length);
 }

@@ -9,12 +9,11 @@
 using namespace std;
 
 Jwt::Jwt(string token, string key) {
-    nlohmann::json header = {{"alg", "HS256"},{"typ", "JWT"}};
-    _header.append(header.dump());
     _key = key;
     _token = token;
-    
-    this->decode();
+    _is_valid = false;
+    if (this->decode())
+        _is_valid = true;
 }
 
 Jwt::Jwt(long user_id, long expire, string key) {
@@ -30,6 +29,8 @@ Jwt::Jwt(long user_id, long expire, string key) {
     _key = key;
     
     generate_token();
+    
+    _is_valid = true;
 }
 
 string Jwt::get_token() {
@@ -79,8 +80,23 @@ bool Jwt::decode() {
             first[i] = tail[i];
         }
         
-        if (cnt == 1) _payload = base64_decode(string(first, size));
-        else _signature = base64_decode(string(first, size));
+        if (cnt == 0) {
+            string temp(first, size);
+            if (!nlohmann::json::accept(temp))
+                return false;
+            
+            _header = base64_decode(temp);
+        }
+        else if (cnt == 1) {
+            string temp(first, size);
+            if (!nlohmann::json::accept(temp))
+                return false;
+            
+            _payload = base64_decode(temp);
+        } 
+        else {
+            _signature = base64_decode(string(first, size));
+        }
         
         tail = head + 1;
         
@@ -91,6 +107,9 @@ bool Jwt::decode() {
 } 
 
 bool Jwt::verify() {
+    if (!_is_valid)
+        return false;
+    
     string signature = sign_packet();
     
     if (is_expired())
@@ -103,7 +122,11 @@ bool Jwt::verify() {
 }
 
 bool Jwt::is_expired() {
+    if (!_is_valid)
+        return false;
+    
     nlohmann::json payload_json = nlohmann::json::parse(_payload);
+        
     time_t expire = payload_json["expire"];
     time_t now; // TODO: get time in UTC
     time(&now);

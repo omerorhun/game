@@ -27,7 +27,7 @@ int Server::init_server() {
     // open a socket
     if ((main_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         cerr << "Can't create a socket!";
-        goto EXIT;
+        return result;
     }
     
     // bind the socket
@@ -38,16 +38,15 @@ int Server::init_server() {
     
     if (bind(main_socket, (const sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
         cerr << "Can't bind to IP/port" << endl;
-        goto EXIT;
+        return result;
     }
     
     // listen the socket
     if ((result = listen(main_socket, SOMAXCONN)) == -1) {
         cerr << "Can't listen!" << endl;
-        goto EXIT;
+        return result;
     }
     
-    EXIT:
     return result;
 }
 
@@ -81,9 +80,7 @@ int Server::wait_clients() {
 void Server::handle_client(int sock) {
     Requests request(sock);
     
-    request.get_request();
     request.handle_request();
-    request.send_response();
 }
 
 Server *Server::get_instance() {
