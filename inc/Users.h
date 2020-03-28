@@ -20,11 +20,11 @@ class Users {
     static Users *get_instance();
     Users();
     bool login_with_facebook(int access_token);
-    ErrorInfo register_user(int *client_id, std::string access_token);
+    ErrorCodes register_user(int *client_id, std::string access_token);
     bool erase_user();
     nlohmann::json get_user_data(int client_id);
     nlohmann::json get_user_data_from_facebook(std::string access_token);
-    ErrorInfo check_errors(nlohmann::json response_json);
+    ErrorCodes check_errors(nlohmann::json response_json);
     
     private:
     void parse_json_data(std::string str);

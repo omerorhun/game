@@ -7,6 +7,7 @@
 #include "Users.h"
 #include "Jwt.h"
 #include "Protocol.h"
+#include "utilities.h"
 
 // socket
 #include <sys/types.h>
@@ -20,44 +21,59 @@ Requests::Requests(int sock) {
     socket = sock;
 }
 
+Requests::~Requests() {
+    _out_packet.free_buffer();
+    _in_packet.free_buffer();
+}
+
 void Requests::send_response() {
     _out_packet.send_packet(socket);
 }
 
-ErrorInfo Requests::get_request(RequestCodes *p_req_code, string *p_indata) {
-    ErrorInfo err = {ERR_SUCCESS, ERR_SUB_SUCCESS};
+ErrorCodes Requests::get_request(RequestCodes *p_req_code, string *p_indata) {
+    ErrorCodes err = ERR_SUCCESS;
     
     if (!_in_packet.receive_packet(socket)) {
         cerr << "ERROR RECEIVE PACKET" << endl;
-        err.code = ERR_REQ_CONNECTION;
+        err = ERR_CONNECTION;
+        _in_packet.free_buffer();
+        set_header(REQUEST_HEADER);
         return err;
     }
     
     // check request
-    ErrorCodes ret = check_request();
-    if (ret != ERR_REQ_SUCCESS) {
-        cerr << "ERROR CODE: " << ret << endl;
-        return ret;
+    err = check_request();
+    if (err != ERR_SUCCESS) {
+        cerr << "ERROR CODE: " << err << endl;
+        _in_packet.free_buffer();
+        set_header(REQUEST_HEADER);
+        return err;
     }
     
-    *p_req_code = (RequestCodes)_in_packet.get_request_code();
-    *p_indata = _in_packet.get_data();
+    RequestCodes req_code = (RequestCodes)_in_packet.get_request_code();
+    string indata = _in_packet.get_data();
     
-    _in_packet.free_buffer(); // i wont use receiving buffer from now, free.
+    _in_packet.free_buffer(); // i wont use receiving buffer anymore, free.
     
-    return ERR_REQ_SUCCESS;
+    err = interpret_request(req_code, indata);
+    if (err != ERR_SUCCESS) {
+        cerr << "ERROR INTERPRET: " << err << endl;
+        return err;
+    }
+    
+    return err;
 }
 
 void Requests::handle_request() {
     RequestCodes req_code;
     string indata;
     
-    ErrorInfo ret = get_request(&req_code, &indata);
-    if (ret.code == ERR_REQ_SUCCESS) {
-        ret = interpret_request(req_code, indata);
+    ErrorCodes ret = get_request(&req_code, &indata);
+    if (ret == ERR_CONNECTION) {
+        printf("Client disconnected\n");
+        return;
     }
-    
-    if (ret.code != ERR_REQ_SUCCESS) {
+    else if (ret != ERR_SUCCESS) {
         prepare_error_packet(ret);
     }
     
@@ -75,107 +91,102 @@ ErrorCodes Requests::check_request() {
     if (!_in_packet.check_crc())
         return ERR_REQ_CRC;
     
-    if (!_in_packet.check_token(jwt_key))
+    // don't check token if login request
+    if (_in_packet.get_request_code() == REQ_FB_LOGIN)
+        return ERR_SUCCESS;
+    
+    if (!_in_packet.check_token(jwt_key)) {
         return ERR_REQ_WRONG_TOKEN;
+    }
     
-    return ERR_REQ_SUCCESS;
+    return ERR_SUCCESS;
 }
 
-bool Requests::check_request_code() {
-    if (_in_packet.get_request_code() < REQ_COUNT)
-        return true;
-    
-    return false;
-}
-
-ErrorInfo Requests::interpret_request(RequestCodes req_code, string indata) {
+ErrorCodes Requests::interpret_request(RequestCodes req_code, string indata) {
     Server *srv = Server::get_instance();
     Users *users = Users::get_instance();
-    ErrorInfo ret = {ERR_REQ_SUCCESS, ERR_SUB_SUCCESS};
+    ErrorCodes ret = ERR_SUCCESS;
     
     cout << "Request code: " << req_code << endl;
     
-    _out_packet.set_header(REQUEST_HEADER);
+    set_header(REQUEST_HEADER);
     if (req_code == REQ_FB_LOGIN) {
+      
+      // no length check. fb token size may vary
+#if 0
+        // TODO: check length(NOT FINISHED)
+        if (indata.size() = 0) {
+            ret = ERR_REQ_WRONG_LENGTH;
+            goto L_ERROR;
+        }
+#endif
         // TODO: test this request
         string fb_token = indata;
         
         int client_id;
         ret = users->register_user(&client_id, fb_token);
-        switch (ret.user) {
-            case ERR_USERS_SIGNUP_SUCCESS:
-            case ERR_USERS_LOGIN_SUCCESS:
-            {
-                _out_packet.set_request_code(REQ_FB_LOGIN);
-                
-                uint8_t ack = ACK;
-                _out_packet.add_data(&ack, 1);
-                
-                time_t start_dt = time(NULL); // get current dt
-                Jwt token(client_id, start_dt, jwt_key);
-                _out_packet.add_data(token.get_token());
-                
+        // TODO: Add all facebook errors
+        switch (ret) {
+            case ERR_SUCCESS:
+                printf("fb success\n");
+                set_request_code(REQ_FB_LOGIN);
+                set_token(client_id);
                 login(client_id);
                 break;
-            }
-            case ERR_USERS_FB:
-                _out_packet.set_request_code(REQ_FB_LOGIN);
-                uint8_t ack = NACK;
-                _out_packet.add_data(&ack, 1);
-                // TODO: add error code
-                ret.code = ERR_REQ_LOGIN;
+            case ERR_FB_UNKNOWN:
+            case ERR_FB_INVALID_ACCESS_TOKEN:
+                printf("fb error\n");
+                goto L_ERROR;
+                break;
+            default:
+                printf("fb default\n");
                 break;
         }
     }
     else if (req_code == REQ_GET_ONLINE_USERS) {
         // TODO: test this request
         if (indata.size() == 0) {
-            uint8_t nack = NACK;
-            _out_packet.add_data(&nack, 1);
-            prepare_error_packet(ERR_REQ_WRONG_LENGTH);
-            
-            
-            return;
+            ret = ERR_REQ_WRONG_LENGTH;
+            goto L_ERROR;
         }
         
-        _out_packet.set_request_code(REQ_GET_ONLINE_USERS);
-        uint8_t ack = ACK;
-        _out_packet.add_data(&ack, 1);
+        set_request_code(REQ_GET_ONLINE_USERS);
+        
         // get online users
         vector<int> onl_cli = srv->get_online_clients();
         
         // add count
-        uint8_t buffer[2];
-        buffer[0] = B0(onl_cli.size());
-        buffer[1] = B1(onl_cli.size());
-        _out_packet.add_data(buffer, 2);
+        uint8_t buffer[2] = {B0(onl_cli.size()), B1(onl_cli.size())};
+        add_data(buffer, 2);
         
         // add client ids
         for (uint16_t i = 0; i < onl_cli.size(); i++) {
-            uint8_t buffer[2];
-            buffer[0] = B0(onl_cli[i]);
-            buffer[1] = B1(onl_cli[i]);
-            buffer[2] = B2(onl_cli[i]);
-            buffer[3] = B3(onl_cli[i]);
-            _out_packet.add_data(buffer, 4);
+            uint8_t buffer[4] = {   
+                                    B0(onl_cli[i]),
+                                    B1(onl_cli[i]),
+                                    B2(onl_cli[i]),
+                                    B3(onl_cli[i])
+                                };
+            
+            add_data(buffer, 4);
         }
-        
-        
     }
     else {
         // unknown request received
-        prepare_error_packet(ERR_REQ_WRONG_REQ_CODE);
+        ret = ERR_REQ_WRONG_REQ_CODE;
+        goto L_ERROR;
     }
     
     _out_packet.set_crc();
     
-    return;
+    L_ERROR:
+    return ret;
 }
 
 void Requests::prepare_error_packet(ErrorCodes err) {
     _out_packet.set_request_code(REQ_ERROR);
-    string errcode = to_string(err);
-    _out_packet.add_data(errcode);
+    uint8_t buffer = (uint8_t)(err & 0xFF);
+    _out_packet.add_data(&buffer, 1);
     _out_packet.set_crc();
 }
 
@@ -383,6 +394,42 @@ void Requests::prepare_error_packet(ErrorCodes err) {
     }
 #endif
 
+bool Requests::check_request_code() {
+    if (_in_packet.get_request_code() < REQ_COUNT)
+        return true;
+    
+    return false;
+}
+
+bool Requests::set_header(uint8_t header) {
+    return _out_packet.set_header(header);
+}
+
+bool Requests::set_request_code(RequestCodes req_code) {
+    return _out_packet.set_request_code((uint8_t)(req_code & 0xFF));
+}
+
+#if 0
+bool Requests::set_ack(uint8_t ack) {
+    return _out_packet.set_ack(ack);
+}
+#endif
+
+bool Requests::set_token(int id) {
+    time_t start_dt = time(NULL); // get current dt
+    Jwt token(id, start_dt, jwt_key);
+    
+    return _out_packet.add_data(token.get_token());
+}
+
+bool Requests::add_data(string data) {
+    _out_packet.add_data(data);
+    return true;
+}
+
+bool Requests::add_data(uint8_t *data, uint16_t len) {
+    return _out_packet.add_data(data, len);
+}
 
 void Requests::login(int client_id) {
     //login

@@ -27,12 +27,13 @@ class Requests {
   
   public:
   Requests(int sock);
+  ~Requests();
   
   void handle_request();
-  ErrorInfo get_request(RequestCodes *p_req_code, std::string *p_indata);
-  ErrorInfo check_request();
-  ErrorInfo interpret_request(RequestCodes req_code, std::string indata);
-  void prepare_error_packet(ErrorInfo err);
+  ErrorCodes get_request(RequestCodes *p_req_code, std::string *p_indata);
+  ErrorCodes check_request();
+  ErrorCodes interpret_request(RequestCodes req_code, std::string indata);
+  void prepare_error_packet(ErrorCodes err);
   void send_response();
   
   void login(int client_id);
@@ -43,6 +44,13 @@ class Requests {
   
   int socket;
   RequestCodes req_code;
+  
+  bool set_header(uint8_t header);
+  bool set_request_code(RequestCodes req_code);
+  bool set_ack(uint8_t ack);
+  bool set_token(int id);
+  bool add_data(std::string data);
+  bool add_data(uint8_t *data, uint16_t len);
   
   bool check_request_code();
   bool check_length();

@@ -76,11 +76,17 @@ int Server::wait_clients() {
     
     return result;
 }
-
+#include <string.h>
 void Server::handle_client(int sock) {
     Requests request(sock);
     
     request.handle_request();
+    
+    // TODO: add timeout here
+    recv(sock, NULL, NULL, NULL);
+    close(sock);
+    
+    printf("socket closed\n");
 }
 
 Server *Server::get_instance() {

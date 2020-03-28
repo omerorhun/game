@@ -19,6 +19,7 @@ Protocol::Protocol() {
     _length = 0;
     _data_length = 0;
     _buffer = NULL;
+    _state = PKT_ST_EMPTY;
 }
 
 Protocol::Protocol(uint8_t *buffer) {
@@ -50,9 +51,14 @@ bool Protocol::receive_packet(int sock) {
     if (_buffer == NULL)
         return false;
     
+    memset(_buffer, 0, RX_BUFFER_SIZE);
+    
     if (recv(sock, _buffer, RX_BUFFER_SIZE, 0) == -1) {
         return false;
     }
+    
+    if (strlen((char *)_buffer) == 0)
+        return false;
     
     // get length;
     _data_length = GET_LENGTH(_buffer);
@@ -114,17 +120,30 @@ bool Protocol::set_header(uint8_t header) {
     if (_buffer != NULL)
         return false;
     
-    _buffer = (uint8_t *)malloc(sizeof(uint8_t) * 3);
-    
+    _buffer = (uint8_t *)malloc(sizeof(uint8_t) * 4); // 5: hdr+len+code
     if (_buffer == NULL)
         return false;
     
-    _length = 3;
     memset(_buffer, 0, _length);
-    _buffer[0] = header;
+    _buffer[PKT_HEADER] = header;
+    _length = 4;
+    _data_length++; // empty request code, will be filled by set_request_code()
     
     return true;
 }
+
+#if 0
+bool Protocol::set_ack(uint8_t ack) {
+    if (_buffer == NULL)
+        return false;
+    
+    _buffer[PKT_ACK] = ack;
+    _data_length++;
+    _length++;
+    
+    return true;
+}
+#endif
 
 uint8_t Protocol::get_request_code() {
     return _buffer[PKT_REQUEST_CODE];
@@ -134,16 +153,7 @@ bool Protocol::set_request_code(uint8_t code) {
     if (_buffer == NULL)
         return false;
     
-    uint8_t *temp = (uint8_t *)realloc(_buffer, _length + 1);
-    
-    if (temp == NULL)
-        return false;
-    
-    _buffer = temp;
-    _buffer[3] = code;
-    
-    _data_length++;
-    _length++;
+    _buffer[PKT_REQUEST_CODE] = code;
     
     return true;
 }
@@ -154,7 +164,9 @@ uint8_t *Protocol::get_buffer() {
 
 bool Protocol::check_token(string key) {
     string indata((char *)&_buffer[PKT_TOKEN]);
+    print_hex((const char *)"constrctr token", (char *)indata.c_str(), indata.size());
     Jwt tkn(indata, key);
+    
     if (!tkn.verify())
         return false;
     
@@ -165,7 +177,7 @@ string Protocol::get_data() {
     if (_buffer == NULL)
         return string("");
     
-    return string((char *)&_buffer[PKT_IN_DATA_START], _data_length - 1);
+    return string((char *)&_buffer[PKT_DATA_START], _data_length - 1);
 }
 
 bool Protocol::add_data(string data) {
@@ -205,6 +217,8 @@ bool Protocol::add_data(uint8_t *data, uint16_t len) {
     }
     _data_length += len;
     _length += len;
+    
+    return true;
 }
 
 bool Protocol::set_crc() {
@@ -224,11 +238,11 @@ bool Protocol::set_crc() {
     for (uint16_t i = 0; i < 2; i++) {
     *(ptr + i) = (uint8_t)NULL;
     }
-
+    
     _buffer[_length++] = B0(crc16); // crc low
     _buffer[_length++] = B1(crc16); // crc high
     set_length();
-
+    
     return true; 
 }
 

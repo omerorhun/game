@@ -5,6 +5,7 @@
 #include "json.hpp"
 
 #include "Jwt.h"
+#include "utilities.h"
 
 using namespace std;
 
@@ -64,38 +65,42 @@ string Jwt::sign_packet() {
     return string((char *)signature, key_size);
 }
 
+// adjust this function. remove strstr funcs.
 bool Jwt::decode() {
     _token.append("\r");
     char *tkn = (char *)_token.c_str();
     
     char *tail = tkn;
     char *head = strstr((char *)tkn, ".");
-    
+        
     uint8_t cnt = 0;
     do {
-        uint16_t size = (head-tail);
+        if (head == NULL)
+            return false;
         
+        uint16_t size = (head-tail);
         char first[size];
-        for (uint8_t i = 0; i < size; i++) {
+        for (uint16_t i = 0; i < size; i++) {
             first[i] = tail[i];
         }
         
         if (cnt == 0) {
-            string temp(first, size);
+            string temp = base64_decode(string(first, size));
             if (!nlohmann::json::accept(temp))
                 return false;
             
-            _header = base64_decode(temp);
+            _header = temp;
         }
         else if (cnt == 1) {
-            string temp(first, size);
+            string temp = base64_decode(string(first, size));
             if (!nlohmann::json::accept(temp))
                 return false;
             
-            _payload = base64_decode(temp);
+            _payload = temp;
         } 
         else {
             _signature = base64_decode(string(first, size));
+            break;
         }
         
         tail = head + 1;
@@ -110,11 +115,10 @@ bool Jwt::verify() {
     if (!_is_valid)
         return false;
     
-    string signature = sign_packet();
-    
     if (is_expired())
         return false;
     
+    string signature = sign_packet();
     if (_signature.compare(signature) == 0)
         return true;
     
@@ -126,7 +130,6 @@ bool Jwt::is_expired() {
         return false;
     
     nlohmann::json payload_json = nlohmann::json::parse(_payload);
-        
     time_t expire = payload_json["expire"];
     time_t now; // TODO: get time in UTC
     time(&now);

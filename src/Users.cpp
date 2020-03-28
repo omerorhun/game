@@ -28,16 +28,17 @@ Users *Users::get_instance() {
     return p_instance;
 }
 
-ErrorInfo Users::register_user(int *client_id, string access_token) {
-    ErrorInfo err;
+// TODO: Add all facebook errors
+ErrorCodes Users::register_user(int *client_id, string access_token) {
+    ErrorCodes err;
     // get user data from facebook
     cout << "waiting response from facebook..." << endl;
     nlohmann::json user_data = get_user_data_from_facebook(access_token);
     cout << "response: " << user_data.dump() << endl << endl;
     
     err = check_errors(user_data);
-    if (err.code != ERR_FB_SUCCESS) {
-        cout << "Error code: " << err.code << endl;
+    if (err != ERR_SUCCESS) {
+        cout << "Error code: " << err << endl;
         return err;
     }
     
@@ -95,7 +96,6 @@ ErrorInfo Users::register_user(int *client_id, string access_token) {
         output.close();
         
         cout << user_info.username << " registered ["<< user_info.id << "]" << endl;
-        err = ERR_USERS_SIGNUP_SUCCESS;
     }
     else {
         // else login
@@ -105,8 +105,6 @@ ErrorInfo Users::register_user(int *client_id, string access_token) {
         user_info.id = user["id"];
         string url = user["url"];
         cout << user_info.username << " logged in ["<< user_info.id << "]" << endl;
-        
-        err = ERR_USERS_LOGIN_SUCCESS;
     }
     
     *client_id = user_info.id;
@@ -192,8 +190,8 @@ string read_file(const char *file_name) {
     return buffer.str();
 }
 
-ErrorInfo Users::check_errors(nlohmann::json response_json) {
-    uint16_t ret;
+ErrorCodes Users::check_errors(nlohmann::json response_json) {
+    ErrorCodes ret = ERR_SUCCESS;
     
     if (response_json.find("error") != response_json.end()) {
         int fb_code = response_json["error"]["code"];
