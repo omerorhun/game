@@ -65,7 +65,7 @@ string Jwt::sign_packet() {
     return string((char *)signature, key_size);
 }
 
-// adjust this function. remove strstr funcs.
+// TODO: adjust this function. remove strstr funcs.
 bool Jwt::decode() {
     _token.append("\r");
     char *tkn = (char *)_token.c_str();
@@ -140,4 +140,10 @@ bool Jwt::is_expired() {
         return false;
     
     return true;
+}
+
+int Jwt::get_uid() {
+    nlohmann::json plaod = nlohmann::json::parse(_payload);
+    int uid = plaod["id"];
+    return uid;
 }

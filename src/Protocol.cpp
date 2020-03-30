@@ -19,7 +19,6 @@ Protocol::Protocol() {
     _length = 0;
     _data_length = 0;
     _buffer = NULL;
-    _state = PKT_ST_EMPTY;
 }
 
 Protocol::Protocol(uint8_t *buffer) {
@@ -162,13 +161,15 @@ uint8_t *Protocol::get_buffer() {
     return _buffer;
 }
 
-bool Protocol::check_token(string key) {
+bool Protocol::check_token(string key, int *p_uid) {
     string indata((char *)&_buffer[PKT_TOKEN]);
     print_hex((const char *)"constrctr token", (char *)indata.c_str(), indata.size());
     Jwt tkn(indata, key);
     
     if (!tkn.verify())
         return false;
+    
+    *p_uid = tkn.get_uid();
     
     return true;
 }

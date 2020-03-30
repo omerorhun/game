@@ -31,12 +31,13 @@ class Requests {
   
   void handle_request();
   ErrorCodes get_request(RequestCodes *p_req_code, std::string *p_indata);
-  ErrorCodes check_request();
-  ErrorCodes interpret_request(RequestCodes req_code, std::string indata);
+  ErrorCodes check_request(int *p_uid);
+  ErrorCodes interpret_request(int uid, RequestCodes req_code, std::string indata);
   void prepare_error_packet(ErrorCodes err);
   void send_response();
   
   void login(int client_id);
+  void logout(int client_id);
   
   private:
   Protocol _in_packet;

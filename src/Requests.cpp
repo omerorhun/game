@@ -32,6 +32,9 @@ void Requests::send_response() {
 
 ErrorCodes Requests::get_request(RequestCodes *p_req_code, string *p_indata) {
     ErrorCodes err = ERR_SUCCESS;
+    RequestCodes req_code;
+    string indata;
+    int uid;
     
     if (!_in_packet.receive_packet(socket)) {
         cerr << "ERROR RECEIVE PACKET" << endl;
@@ -42,7 +45,7 @@ ErrorCodes Requests::get_request(RequestCodes *p_req_code, string *p_indata) {
     }
     
     // check request
-    err = check_request();
+    err = check_request(&uid);
     if (err != ERR_SUCCESS) {
         cerr << "ERROR CODE: " << err << endl;
         _in_packet.free_buffer();
@@ -50,12 +53,17 @@ ErrorCodes Requests::get_request(RequestCodes *p_req_code, string *p_indata) {
         return err;
     }
     
-    RequestCodes req_code = (RequestCodes)_in_packet.get_request_code();
-    string indata = _in_packet.get_data();
+    req_code = (RequestCodes)_in_packet.get_request_code();
+    if (req_code != REQ_FB_LOGIN)
+        indata = _in_packet.get_data().substr(TOKEN_SIZE, _in_packet.get_length() - TOKEN_SIZE);
+    else
+        indata = _in_packet.get_data();
+    
+    
     
     _in_packet.free_buffer(); // i wont use receiving buffer anymore, free.
     
-    err = interpret_request(req_code, indata);
+    err = interpret_request(uid, req_code, indata);
     if (err != ERR_SUCCESS) {
         cerr << "ERROR INTERPRET: " << err << endl;
         return err;
@@ -80,7 +88,7 @@ void Requests::handle_request() {
     send_response();
 }
 
-ErrorCodes Requests::check_request() {
+ErrorCodes Requests::check_request(int *p_uid) {
     ErrorCodes ret = ERR_REQ_UNKNOWN;
     
     // check header
@@ -95,14 +103,14 @@ ErrorCodes Requests::check_request() {
     if (_in_packet.get_request_code() == REQ_FB_LOGIN)
         return ERR_SUCCESS;
     
-    if (!_in_packet.check_token(jwt_key)) {
+    if (!_in_packet.check_token(jwt_key, p_uid)) {
         return ERR_REQ_WRONG_TOKEN;
     }
     
     return ERR_SUCCESS;
 }
 
-ErrorCodes Requests::interpret_request(RequestCodes req_code, string indata) {
+ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string indata) {
     Server *srv = Server::get_instance();
     Users *users = Users::get_instance();
     ErrorCodes ret = ERR_SUCCESS;
@@ -111,7 +119,6 @@ ErrorCodes Requests::interpret_request(RequestCodes req_code, string indata) {
     
     set_header(REQUEST_HEADER);
     if (req_code == REQ_FB_LOGIN) {
-      
       // no length check. fb token size may vary
 #if 0
         // TODO: check length(NOT FINISHED)
@@ -123,15 +130,14 @@ ErrorCodes Requests::interpret_request(RequestCodes req_code, string indata) {
         // TODO: test this request
         string fb_token = indata;
         
-        int client_id;
-        ret = users->register_user(&client_id, fb_token);
+        ret = users->register_user(&uid, fb_token);
         // TODO: Add all facebook errors
         switch (ret) {
             case ERR_SUCCESS:
                 printf("fb success\n");
                 set_request_code(REQ_FB_LOGIN);
-                set_token(client_id);
-                login(client_id);
+                set_token(uid);
+                login(uid);
                 break;
             case ERR_FB_UNKNOWN:
             case ERR_FB_INVALID_ACCESS_TOKEN:
@@ -143,9 +149,23 @@ ErrorCodes Requests::interpret_request(RequestCodes req_code, string indata) {
                 break;
         }
     }
+    else if (req_code == REQ_LOGOUT) {
+        if(indata.size() != 0) {
+            ret = ERR_REQ_WRONG_LENGTH;
+            goto L_ERROR;
+        }
+        
+        logout(uid);
+        
+        set_request_code(REQ_LOGOUT);
+        uint8_t outdata = ACK;
+        add_data(&outdata, 1);
+    }
     else if (req_code == REQ_GET_ONLINE_USERS) {
         // TODO: test this request
-        if (indata.size() == 0) {
+        if (indata.size() != 0) {
+            printf("size: %d\n", indata.size());
+            print_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
         }
@@ -170,6 +190,15 @@ ErrorCodes Requests::interpret_request(RequestCodes req_code, string indata) {
             
             add_data(buffer, 4);
         }
+    }
+    else if (req_code == REQ_MATCH) {
+        // get uid
+        // find opponent
+        // get opponent info
+        // send opponent info to user
+        // wait for confirmation
+        // if ok: send questions, finish request
+        // if nok: finish request
     }
     else {
         // unknown request received
@@ -436,3 +465,7 @@ void Requests::login(int client_id) {
     Server::get_instance()->login(client_id);
 }
 
+void Requests::logout(int client_id) {
+    //logout
+    Server::get_instance()->logout(client_id);
+}

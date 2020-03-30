@@ -8,6 +8,7 @@ class Jwt {
     Jwt(long user_id, long expire, std::string key);
     std::string get_token();
     bool verify();
+    int get_uid();
     
     private:
     std::string _header;

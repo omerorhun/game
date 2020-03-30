@@ -83,7 +83,7 @@ ErrorCodes Users::register_user(int *client_id, string access_token) {
         nlohmann::json new_user;
         
         // TODO: Determine client's id
-        user_info.id = all_users_json.size() + 1;
+        user_info.id = all_users_json.size() + 10000000;
         
         new_user["id"] = user_info.id;
         new_user["fb_id"] = user_info.fb_id;

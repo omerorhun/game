@@ -13,7 +13,7 @@
 #include "ClientInfo.h"
 #include "Requests.h"
 
-//using namespace std;
+using namespace std;
 
 Server *Server::p_instance = NULL;
 
@@ -172,7 +172,15 @@ bool Server::is_client_online(int uid) {
 mutex mtx_waiting;
 
 int Server::login(int uid) {
+    vector<int>::iterator it;
     
+    // check if client logged in
+    if (lookup(uid, &it)) {
+        printf("already logged in\n");
+        return 0;
+    }
+    
+    // add client
     mtx_waiting.lock();
     online_clients.push_back(uid);
     mtx_waiting.unlock();
@@ -180,15 +188,22 @@ int Server::login(int uid) {
     return 1;
 }
 
-
 int Server::logout(int uid) {
-    auto it = find(online_clients.begin(), online_clients.end(), uid);
-    if (it == online_clients.end())
+    vector<int>::iterator it;
+    if (!lookup(uid, &it))
         return 0;
     
     online_clients.erase(it);
     
     return 1;
+}
+
+bool Server::lookup(int uid, vector<int>::iterator *it) {
+    *it = find(online_clients.begin(), online_clients.end(), uid);
+    if (*it == online_clients.end())
+        return false;
+    
+    return true;
 }
 
 #include <string.h>
@@ -212,4 +227,3 @@ void Server::print_client_status(sockaddr_in client) {
     
     return;
 }
-

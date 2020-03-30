@@ -4,7 +4,7 @@
 #include <string>
 
 #define RX_BUFFER_SIZE 1024
-#define TOKEN_SIZE 142
+#define TOKEN_SIZE 130
 
 #define PROTOCOL_HEADER 0x01
 
@@ -29,17 +29,6 @@ struct ProtocolCrcException : public std::exception {
     }
 };
 
-typedef enum {
-  PKT_ST_EMPTY,
-  PKT_ST_HEADER,
-  PKT_ST_LENGTH,
-  PKT_ST_REQUEST_CODE,
-  PKT_ST_ACK,
-  PKT_ST_DATA,
-  PKT_ST_CRC,
-  PKT_ST_READY
-}PacketStates;
-
 class Protocol {
   public:
   Protocol();
@@ -62,7 +51,7 @@ class Protocol {
   bool set_crc();
   
   bool check_crc();
-  bool check_token(std::string key);
+  bool check_token(std::string key, int *p_uid);
   
   void send_packet(int sock);
   bool receive_packet(int sock);
@@ -73,7 +62,6 @@ class Protocol {
   uint8_t *_buffer;
   uint16_t _length; // whole buffer size
   uint16_t _data_length; // sum of data + requestcode(1 byte)
-  PacketStates _state;
   void set_length();
 };
 

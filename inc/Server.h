@@ -17,18 +17,19 @@ class Server {
     int wait_clients();
     void handle_client(int sock);
     
-    int add_client(int client_id);
-    int add_client_to_waiting_list(int client_id);
-    int login(int client_id);
-    int logout(int client_id);
+    int add_client(int uid);
+    int add_client_to_waiting_list(int uid);
+    int login(int uid);
+    int logout(int uid);
+    bool lookup(int uid, std::vector<int>::iterator *it);
     
     static Server *get_instance();
     
-    void add_message_by_id(int id, string msg);
-    string get_message_by_id(int id);
+    void add_message_by_id(int id, std::string msg);
+    std::string get_message_by_id(int id);
     int check_for_messages(int id);
     
-    vector<int> get_online_clients();
+    std::vector<int> get_online_clients();
     bool is_client_online(int id);
     
     void print_client_status(sockaddr_in client);
@@ -39,10 +40,10 @@ class Server {
     
     void add_messagebox(int id);
     
-    vector<int> online_clients;
-    vector<int> waiting_clients;
-    vector<int> active_clients;
-    map<int, vector<string> > message_queue;
+    std::vector<int> online_clients;
+    std::vector<int> waiting_clients;
+    std::vector<int> active_clients;
+    std::map<int, std::vector<std::string> > message_queue;
 };
 
 
