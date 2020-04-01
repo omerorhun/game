@@ -30,7 +30,7 @@ void Requests::send_response() {
     _out_packet.send_packet(socket);
 }
 
-ErrorCodes Requests::get_request(RequestCodes *p_req_code, string *p_indata) {
+ErrorCodes Requests::get_request() {
     ErrorCodes err = ERR_SUCCESS;
     RequestCodes req_code;
     string indata;
@@ -72,20 +72,19 @@ ErrorCodes Requests::get_request(RequestCodes *p_req_code, string *p_indata) {
     return err;
 }
 
-void Requests::handle_request() {
-    RequestCodes req_code;
-    string indata;
-    
-    ErrorCodes ret = get_request(&req_code, &indata);
+ErrorCodes Requests::handle_request() {
+    ErrorCodes ret = get_request();
     if (ret == ERR_CONNECTION) {
         printf("Client disconnected\n");
-        return;
+        return ERR_REQ_DISCONNECTED;
     }
     else if (ret != ERR_SUCCESS) {
         prepare_error_packet(ret);
     }
     
     send_response();
+    
+    return ERR_SUCCESS;
 }
 
 ErrorCodes Requests::check_request(int *p_uid) {
@@ -164,7 +163,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     else if (req_code == REQ_GET_ONLINE_USERS) {
         // TODO: test this request
         if (indata.size() != 0) {
-            printf("size: %d\n", indata.size());
+            printf("size: %d\n", (int)indata.size());
             print_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
@@ -193,12 +192,19 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     }
     else if (req_code == REQ_MATCH) {
         // get uid
+        
         // find opponent
+        
+        
         // get opponent info
-        // send opponent info to user
-        // wait for confirmation
-        // if ok: send questions, finish request
-        // if nok: finish request
+        // prepare opponent info
+        // end
+    }
+    else if (req_code == REQ_CANCEL_MATCH) {
+        
+    }
+    else if(req_code == REQ_START_GAME) {
+        
     }
     else {
         // unknown request received

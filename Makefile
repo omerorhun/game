@@ -3,8 +3,8 @@ CC=gcc
 CXX=g++
 CFLAGS= -std=c++11 -ggdb
 LIBS= -lpthread -pthread -lcurl -lcrypto -lssl
-OBJS= ./obj/main.o ./obj/ClientInfo.o ./obj/Server.o ./obj/Users.o 
-OBJS+= ./obj/Protocol.o ./obj/Requests.o ./obj/Jwt.o ./obj/base64.o ./obj/utilities.o
+OBJS= ./obj/main.o ./obj/Server.o ./obj/Users.o ./obj/utilities.o
+OBJS+= ./obj/Protocol.o ./obj/Requests.o ./obj/Jwt.o ./obj/base64.o
 
 all: server
 
@@ -14,7 +14,7 @@ image:
 	@echo "linking $@"
 	@$(CXX) $(CFLAGS) $(OBJS) $(LIBS) -o server
 
-build: main Users Server ClientInfo Jwt base64 Protocol Requests utilities
+build: main Users Server Jwt base64 Protocol Requests utilities
 
 main: ./src/main.cpp ./inc/Server.h ./inc/Users.h
 	@echo "compiling $@"
@@ -24,13 +24,9 @@ Users: ./src/Users.cpp ./inc/Users.h ./inc/json.hpp
 	@echo "compiling $@"
 	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Users.cpp -o ./obj/Users.o
 
-Server: ./src/Server.cpp ./inc/Server.h ./inc/ClientInfo.h ./inc/Requests.h
+Server: ./src/Server.cpp ./inc/Server.h ./inc/Requests.h
 	@echo "compiling $@"
 	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Server.cpp -o ./obj/Server.o
-
-ClientInfo: ./src/ClientInfo.cpp ./inc/ClientInfo.h ./inc/Users.h 
-	@echo "compiling $@"
-	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/ClientInfo.cpp -o ./obj/ClientInfo.o
 
 Jwt: ./src/Jwt.cpp ./inc/Jwt.h
 	@echo "compiling $@"

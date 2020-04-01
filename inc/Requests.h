@@ -21,6 +21,8 @@ typedef enum {
     REQ_GET_ONLINE_USERS,
     REQ_DISCONNECT,
     REQ_ERROR,
+    REQ_CANCEL_MATCH,
+    REQ_START_GAME,
 }RequestCodes;
 
 class Requests {
@@ -29,8 +31,8 @@ class Requests {
   Requests(int sock);
   ~Requests();
   
-  void handle_request();
-  ErrorCodes get_request(RequestCodes *p_req_code, std::string *p_indata);
+  ErrorCodes handle_request();
+  ErrorCodes get_request();
   ErrorCodes check_request(int *p_uid);
   ErrorCodes interpret_request(int uid, RequestCodes req_code, std::string indata);
   void prepare_error_packet(ErrorCodes err);

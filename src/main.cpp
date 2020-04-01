@@ -22,7 +22,6 @@
 // for special ops
 #include "Server.h"
 #include "Users.h"
-//#include "ClientInfo.h"
 #include <vector>
 #include <map>
 
@@ -72,7 +71,6 @@ typedef enum {
     TEST
 }RequestTypes;
 
-//map<int, ClientInfo> online_clients;
 bool g_is_active = true;
 
 

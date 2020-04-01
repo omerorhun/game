@@ -3,12 +3,12 @@
 
 #include <map>
 #include <vector>
+#include <netdb.h>
+#include <mutex>
+
+#include "errors.h"
 
 #define SERVER_PORT 1903
-
-using namespace std;
-
-#include <netdb.h>
 
 class Server {
     public:
@@ -35,15 +35,21 @@ class Server {
     void print_client_status(sockaddr_in client);
     
     private:
-    int main_socket;
+    int _main_socket;
     static Server *p_instance;
-    
     void add_messagebox(int id);
     
     std::vector<int> online_clients;
     std::vector<int> waiting_clients;
     std::vector<int> active_clients;
     std::map<int, std::vector<std::string> > message_queue;
+    
+    // for select()
+    fd_set _ready_sockets;
+    int _clients[SOMAXCONN];
+    std::mutex mtx_clients[SOMAXCONN];
+    int client_count;
+    ErrorCodes add_new_connection(fd_set *p_set);
 };
 
 

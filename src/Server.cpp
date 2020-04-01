@@ -10,7 +10,6 @@
 #include <mutex>
 
 #include "Server.h"
-#include "ClientInfo.h"
 #include "Requests.h"
 
 using namespace std;
@@ -19,13 +18,14 @@ Server *Server::p_instance = NULL;
 
 Server::Server(void) {
     p_instance = this;
+    FD_ZERO(&_ready_sockets);
 }
 
 int Server::init_server() {
     int result = -1;
     
     // open a socket
-    if ((main_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    if ((_main_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         cerr << "Can't create a socket!";
         return result;
     }
@@ -36,16 +36,19 @@ int Server::init_server() {
     inet_pton(AF_INET, "0.0.0.0", &server_addr.sin_addr);
     server_addr.sin_port = htons(SERVER_PORT);
     
-    if (bind(main_socket, (const sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
+    if (bind(_main_socket, (const sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
         cerr << "Can't bind to IP/port" << endl;
         return result;
     }
     
     // listen the socket
-    if ((result = listen(main_socket, SOMAXCONN)) == -1) {
+    if ((result = listen(_main_socket, SOMAXCONN)) == -1) {
         cerr << "Can't listen!" << endl;
         return result;
     }
+    
+    // add main listening socket to the set
+    FD_SET(_main_socket, &_ready_sockets);
     
     return result;
 }
@@ -56,37 +59,84 @@ int Server::wait_clients() {
     cout << "Waiting for clients.." << endl;
     
     std::vector<std::thread> thread_vector;
-    
+    fd_set temp_set;
     for (;;) {
-        int client_socket;
-        sockaddr_in client_addr;
-        socklen_t client_len = sizeof(client_addr);
         
-        if ((client_socket = accept(main_socket, (sockaddr *)&client_addr, &client_len)) == -1) {
-            // acception error
-            cerr << "Error on accept\n";
-            close(client_socket);
-            break;
+        temp_set = _ready_sockets;
+        int ret = select(FD_SETSIZE, &temp_set, NULL, NULL, NULL);
+        
+        if (ret == 0) {
+            printf("select timeout\n");
+            continue;
         }
-        
-        print_client_status(client_addr);
-        
-        thread_vector.emplace_back(thread(&Server::handle_client, this, client_socket));
+        else if (ret == -1) {
+            printf("select error\n");
+            continue;
+        }
+        else {
+            for (int conn = 0; conn < FD_SETSIZE; conn++) {
+                if (FD_ISSET(conn, &temp_set)) {
+                    printf("conn %d\n", conn);
+                    if (conn == _main_socket) {
+                        // new connection
+                        add_new_connection(&_ready_sockets);
+                    }
+                    else {
+                        // existing connection, new request
+                        printf("new request from %d\n", conn);
+                        handle_client(conn);
+                        //thread_vector.emplace_back(thread(&Server::handle_client, this, conn));
+                    }
+                }
+            }
+        }
     }
     
     return result;
 }
+
+ErrorCodes Server::add_new_connection(fd_set *p_set) {
+    int client_socket;
+    sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+    
+    if ((client_socket = accept(_main_socket, (sockaddr *)&client_addr, &client_len)) == -1) {
+        // acception error
+        cerr << "Error on accept\n";
+        close(client_socket);
+        return ERR_SRV_ACCEPT_CONN;
+    }
+    
+    // add client socket to the set
+    FD_SET(client_socket, p_set);
+    
+    print_client_status(client_addr);
+    
+    return ERR_SUCCESS;
+}
+
 #include <string.h>
 void Server::handle_client(int sock) {
     Requests request(sock);
     
-    request.handle_request();
+    printf("handle_client: %d\n", sock);
     
+    ErrorCodes err = request.handle_request();
+    if (err == ERR_REQ_DISCONNECTED) {
+        // Close socket
+        close(sock);
+        
+        // Remove socket from the set
+        FD_CLR(sock, &_ready_sockets);
+    }
+    
+#if 0
     // TODO: add timeout here
-    recv(sock, NULL, NULL, NULL);
+    recv(sock, NULL, 0, 0);
     close(sock);
     
     printf("socket closed\n");
+#endif
 }
 
 Server *Server::get_instance() {
