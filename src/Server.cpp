@@ -12,14 +12,31 @@
 #include "Server.h"
 #include "Requests.h"
 
+// for libev
+#if !CPP_STYLE_LIBEV
+#include <ev.h>
+struct ev_loop *Server::_ploop = NULL;
+#else
+#include <ev++.h>
+#endif // !CPP_STYLE_LIBEV
+
 using namespace std;
 
 Server *Server::p_instance = NULL;
-
-Server::Server(void) {
+#if CPP_STYLE_LIBEV
+Server::Server(ev::dynamic_loop &loop) {
     p_instance = this;
-    FD_ZERO(&_ready_sockets);
+
+    _waccept.set(loop);
 }
+#else
+Server::Server() {
+    p_instance = this;
+    
+    // init loop
+    _ploop = ev_default_loop(0);
+}
+#endif // CPP_STYLE_LIBEV
 
 int Server::init_server() {
     int result = -1;
@@ -47,10 +64,93 @@ int Server::init_server() {
         return result;
     }
     
-    // add main listening socket to the set
-    FD_SET(_main_socket, &_ready_sockets);
-    
+#if !CPP_STYLE_LIBEV
+    _waccept.fd = _main_socket;
+    ev_io_init(&_waccept, add_new_connection, _main_socket, EV_READ);
+    ev_io_start(_ploop, &_waccept);
+#else
+    _waccept.set<Server, &Server::add_new_connection>(this);
+    _waccept.set(_main_socket, ev::READ);
+    _waccept.start();
+#endif    
     return result;
+}
+
+#if CPP_STYLE_LIBEV
+// cpp style libev
+void Server::add_new_connection(ev::io &watcher, int revents) {
+    int client_socket;
+    sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+    
+    if ((client_socket = accept(watcher.fd, (sockaddr *)&client_addr, &client_len)) == -1) {
+        // acception error
+        cerr << "Error on accept\n";
+        close(client_socket);
+        return;
+    }
+    
+    printf("%s %d\n", __func__, client_socket);
+    
+    ev::io *w_client = (ev::io *)malloc(sizeof(ev::io));
+    printf("_waccept.loop: %p\n", &_waccept.loop);
+    w_client->set(_waccept.loop);
+    w_client->set<Server, &Server::handle_client>(this);
+    w_client->set(client_socket, ev::READ);
+    w_client->start();
+}
+
+void Server::handle_client(ev::io &watcher, int revents) {
+    Requests request(watcher.fd);
+    
+    printf("handle_client: %d\n", watcher.fd);
+    
+    ErrorCodes err = request.handle_request();
+    if (err == ERR_REQ_DISCONNECTED) {
+        // Close socket
+        close(watcher.fd);
+        
+        // stop io
+        watcher.stop();
+        free(&watcher);
+    }
+}
+#else
+
+void Server::add_new_connection(struct ev_loop *loop, struct ev_io *watcher, int revents) {
+    int client_socket;
+    sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+    
+    if ((client_socket = accept(watcher->fd, (sockaddr *)&client_addr, &client_len)) == -1) {
+        // acception error
+        cerr << "Error on accept\n";
+        close(client_socket);
+        return;
+    }
+    
+    // add event listener for this client
+    ev_io *w_client = (ev_io *)malloc(sizeof(ev_io));
+    w_client->fd = client_socket;
+    ev_io_init(w_client, handle_client, client_socket, EV_READ);
+    ev_io_start(_ploop, w_client);
+}
+
+#include <string.h>
+void Server::handle_client(struct ev_loop *loop, struct ev_io *watcher, int revents) {
+    Requests request(watcher->fd);
+    
+    printf("handle_client: %d\n", watcher->fd);
+    
+    ErrorCodes err = request.handle_request();
+    if (err == ERR_REQ_DISCONNECTED) {
+        // Close socket
+        close(watcher->fd);
+        
+        // stop io
+        ev_io_stop(loop, watcher);
+        free(watcher);
+    }
 }
 
 int Server::wait_clients() {
@@ -58,86 +158,12 @@ int Server::wait_clients() {
     
     cout << "Waiting for clients.." << endl;
     
-    std::vector<std::thread> thread_vector;
-    fd_set temp_set;
-    for (;;) {
-        
-        temp_set = _ready_sockets;
-        int ret = select(FD_SETSIZE, &temp_set, NULL, NULL, NULL);
-        
-        if (ret == 0) {
-            printf("select timeout\n");
-            continue;
-        }
-        else if (ret == -1) {
-            printf("select error\n");
-            continue;
-        }
-        else {
-            for (int conn = 0; conn < FD_SETSIZE; conn++) {
-                if (FD_ISSET(conn, &temp_set)) {
-                    printf("conn %d\n", conn);
-                    if (conn == _main_socket) {
-                        // new connection
-                        add_new_connection(&_ready_sockets);
-                    }
-                    else {
-                        // existing connection, new request
-                        printf("new request from %d\n", conn);
-                        handle_client(conn);
-                        //thread_vector.emplace_back(thread(&Server::handle_client, this, conn));
-                    }
-                }
-            }
-        }
-    }
+    // check events
+    ev_run(_ploop, 0);
     
     return result;
 }
-
-ErrorCodes Server::add_new_connection(fd_set *p_set) {
-    int client_socket;
-    sockaddr_in client_addr;
-    socklen_t client_len = sizeof(client_addr);
-    
-    if ((client_socket = accept(_main_socket, (sockaddr *)&client_addr, &client_len)) == -1) {
-        // acception error
-        cerr << "Error on accept\n";
-        close(client_socket);
-        return ERR_SRV_ACCEPT_CONN;
-    }
-    
-    // add client socket to the set
-    FD_SET(client_socket, p_set);
-    
-    print_client_status(client_addr);
-    
-    return ERR_SUCCESS;
-}
-
-#include <string.h>
-void Server::handle_client(int sock) {
-    Requests request(sock);
-    
-    printf("handle_client: %d\n", sock);
-    
-    ErrorCodes err = request.handle_request();
-    if (err == ERR_REQ_DISCONNECTED) {
-        // Close socket
-        close(sock);
-        
-        // Remove socket from the set
-        FD_CLR(sock, &_ready_sockets);
-    }
-    
-#if 0
-    // TODO: add timeout here
-    recv(sock, NULL, 0, 0);
-    close(sock);
-    
-    printf("socket closed\n");
-#endif
-}
+#endif // CPP_STYLE_LIBEV
 
 Server *Server::get_instance() {
     return p_instance;

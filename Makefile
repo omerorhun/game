@@ -2,7 +2,7 @@
 CC=gcc
 CXX=g++
 CFLAGS= -std=c++11 -ggdb
-LIBS= -lpthread -pthread -lcurl -lcrypto -lssl
+LIBS= -lpthread -pthread -lcurl -lev -lcrypto -lssl
 OBJS= ./obj/main.o ./obj/Server.o ./obj/Users.o ./obj/utilities.o
 OBJS+= ./obj/Protocol.o ./obj/Requests.o ./obj/Jwt.o ./obj/base64.o
 
@@ -26,7 +26,7 @@ Users: ./src/Users.cpp ./inc/Users.h ./inc/json.hpp
 
 Server: ./src/Server.cpp ./inc/Server.h ./inc/Requests.h
 	@echo "compiling $@"
-	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Server.cpp -o ./obj/Server.o
+	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Server.cpp -lev -o ./obj/Server.o
 
 Jwt: ./src/Jwt.cpp ./inc/Jwt.h
 	@echo "compiling $@"

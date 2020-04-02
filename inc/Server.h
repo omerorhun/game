@@ -6,16 +6,28 @@
 #include <netdb.h>
 #include <mutex>
 
+#define CPP_STYLE_LIBEV 0
+
+// for libev
+#if !CPP_STYLE_LIBEV
+#include <ev.h>
+#else
+#include <ev++.h>
+#endif
+
 #include "errors.h"
 
 #define SERVER_PORT 1903
 
 class Server {
     public:
-    Server(void);
-    int init_server();
+#if CPP_STYLE_LIBEV
+    Server(ev::dynamic_loop &loop);
+#else
+    Server();
     int wait_clients();
-    void handle_client(int sock);
+#endif
+    int init_server();
     
     int add_client(int uid);
     int add_client_to_waiting_list(int uid);
@@ -49,9 +61,19 @@ class Server {
     int _clients[SOMAXCONN];
     std::mutex mtx_clients[SOMAXCONN];
     int client_count;
-    ErrorCodes add_new_connection(fd_set *p_set);
+    //ErrorCodes add_new_connection(fd_set *p_set);
+    
+    // for libev
+#if !CPP_STYLE_LIBEV
+    ev_io _waccept;
+    static struct ev_loop *_ploop;
+    static void add_new_connection(struct ev_loop *loop, ev_io *watcher, int revents);
+    static void handle_client(struct ev_loop *loop, ev_io *watcher, int revents);
+#else
+    ev::io _waccept;
+    void add_new_connection(ev::io &watcher, int revents);
+    void handle_client(ev::io &watcher, int revents);
+#endif
+    
 };
-
-
-
 #endif 
