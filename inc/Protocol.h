@@ -2,6 +2,7 @@
 #define _PROTOCOL_H_
 
 #include <string>
+#include "constants.h"
 
 #define RX_BUFFER_SIZE 1024
 #define TOKEN_SIZE 130

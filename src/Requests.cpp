@@ -8,6 +8,7 @@
 #include "Jwt.h"
 #include "Protocol.h"
 #include "utilities.h"
+#include "Matcher.h"
 
 // socket
 #include <sys/types.h>
@@ -37,7 +38,7 @@ ErrorCodes Requests::get_request() {
     int uid;
     
     if (!_in_packet.receive_packet(socket)) {
-        cerr << "ERROR RECEIVE PACKET" << endl;
+        printf("ERROR RECEIVE PACKET\n");
         err = ERR_CONNECTION;
         _in_packet.free_buffer();
         set_header(REQUEST_HEADER);
@@ -47,7 +48,7 @@ ErrorCodes Requests::get_request() {
     // check request
     err = check_request(&uid);
     if (err != ERR_SUCCESS) {
-        cerr << "ERROR CODE: " << err << endl;
+        printf("ERROR CODE: %d\n", err);
         _in_packet.free_buffer();
         set_header(REQUEST_HEADER);
         return err;
@@ -59,13 +60,11 @@ ErrorCodes Requests::get_request() {
     else
         indata = _in_packet.get_data();
     
-    
-    
     _in_packet.free_buffer(); // i wont use receiving buffer anymore, free.
     
     err = interpret_request(uid, req_code, indata);
     if (err != ERR_SUCCESS) {
-        cerr << "ERROR INTERPRET: " << err << endl;
+        printf("ERROR INTERPRET: %d\n", err);
         return err;
     }
     
@@ -114,7 +113,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     Users *users = Users::get_instance();
     ErrorCodes ret = ERR_SUCCESS;
     
-    cout << "Request code: " << req_code << endl;
+    printf("Request code: %d\n", req_code);
     
     set_header(REQUEST_HEADER);
     if (req_code == REQ_FB_LOGIN) {
@@ -191,13 +190,38 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         }
     }
     else if (req_code == REQ_MATCH) {
-        // get uid
-        
+        User user;
+        printf("match request from : %d\n", uid);
         // find opponent
+        // 1- add client's uid to the 'waiting matches list'
+        user.uid = uid;
+        user.op_uid = 0;
+        Matcher::get_instance()->add(&user);
         
+        //  Note: matcher will find an opponent from waiting list and throws an event
+        // 2- start event listener
+        // TODO: add timeout
         
-        // get opponent info
-        // prepare opponent info
+        printf("waiting match for %d...\n", uid);
+        while(user.op_uid == 0) {
+            // wait
+        }
+        printf("%d matched with %d\n", user.uid, user.op_uid);
+        
+        // 3- when event occurs, get opponent info :
+        //nlohmann::json op = users->get_user_data(user.op_uid);
+        
+        // 4- prepare package for transmitting to the client
+        set_request_code(REQ_MATCH);
+        uint8_t buffer[4] = {
+            B0(user.op_uid),
+            B1(user.op_uid),
+            B2(user.op_uid),
+            B3(user.op_uid)
+        };
+        
+        add_data(buffer, 4);
+        
         // end
     }
     else if (req_code == REQ_CANCEL_MATCH) {
@@ -395,8 +419,8 @@ void Requests::prepare_error_packet(ErrorCodes err) {
         if (ptr) {
             int ret = 0;
             if ((ret = sscanf(ptr, "access_token=%[^\n]\n", access_token))) {
-                cout << "ret: " << ret << endl;
-                cout << "access_token: " << string(access_token) << endl;
+                printf("ret: %d\n", ret);
+                printf("access_token: %s\n", access_token);
                 
                 char tx_buffer[RX_BUFFER_SIZE];
                 memset(&tx_buffer, 0, RX_BUFFER_SIZE);

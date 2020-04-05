@@ -1,3 +1,9 @@
+/*
+    TODO:
+    - requests will be limited by per second
+    - there will be a restriction to requests per second from same IP
+*/
+
 #include <iostream>
 
 #include <sys/types.h>
@@ -5,6 +11,8 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
+
+#include <fcntl.h>
 
 #include <thread>
 #include <mutex>
@@ -14,15 +22,13 @@
 
 // for libev
 #if !CPP_STYLE_LIBEV
-#include <ev.h>
 struct ev_loop *Server::_ploop = NULL;
-#else
-#include <ev++.h>
 #endif // !CPP_STYLE_LIBEV
 
 using namespace std;
 
 Server *Server::p_instance = NULL;
+
 #if CPP_STYLE_LIBEV
 Server::Server(ev::dynamic_loop &loop) {
     p_instance = this;
@@ -31,7 +37,8 @@ Server::Server(ev::dynamic_loop &loop) {
 }
 #else
 Server::Server() {
-    p_instance = this;
+    if (p_instance == NULL)
+        p_instance = this;
     
     // init loop
     _ploop = ev_default_loop(0);
@@ -39,12 +46,14 @@ Server::Server() {
 #endif // CPP_STYLE_LIBEV
 
 int Server::init_server() {
-    int result = -1;
+    int result = 0;
+    
+    printf("init server\n");
     
     // open a socket
     if ((_main_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        cerr << "Can't create a socket!";
-        return result;
+        printf("Can't create a socket!\n");
+        return -1;
     }
     
     // bind the socket
@@ -54,14 +63,14 @@ int Server::init_server() {
     server_addr.sin_port = htons(SERVER_PORT);
     
     if (bind(_main_socket, (const sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
-        cerr << "Can't bind to IP/port" << endl;
-        return result;
+        printf("Can't bind to IP/port\n");
+        return -1;
     }
     
     // listen the socket
-    if ((result = listen(_main_socket, SOMAXCONN)) == -1) {
-        cerr << "Can't listen!" << endl;
-        return result;
+    if (listen(_main_socket, SOMAXCONN) == -1) {
+        printf("Can't listen!\n");
+        return -1;
     }
     
 #if !CPP_STYLE_LIBEV
@@ -72,7 +81,10 @@ int Server::init_server() {
     _waccept.set<Server, &Server::add_new_connection>(this);
     _waccept.set(_main_socket, ev::READ);
     _waccept.start();
-#endif    
+#endif // !CPP_STYLE_LIBEV
+
+
+    printf("init server end\n");
     return result;
 }
 
@@ -85,7 +97,7 @@ void Server::add_new_connection(ev::io &watcher, int revents) {
     
     if ((client_socket = accept(watcher.fd, (sockaddr *)&client_addr, &client_len)) == -1) {
         // acception error
-        cerr << "Error on accept\n";
+        printf("Error on accept\n");
         close(client_socket);
         return;
     }
@@ -124,39 +136,80 @@ void Server::add_new_connection(struct ev_loop *loop, struct ev_io *watcher, int
     
     if ((client_socket = accept(watcher->fd, (sockaddr *)&client_addr, &client_len)) == -1) {
         // acception error
-        cerr << "Error on accept\n";
+        printf("Error on accept\n");
         close(client_socket);
         return;
     }
     
     // add event listener for this client
-    ev_io *w_client = (ev_io *)malloc(sizeof(ev_io));
+    ev_io *w_client = (ev_io *)malloc(sizeof(ev_io)); // TEST: release this
     w_client->fd = client_socket;
-    ev_io_init(w_client, handle_client, client_socket, EV_READ);
+    w_client->data = (void *)malloc(sizeof(bool)); // TEST: release this
+    *(bool*)w_client->data = true; // available for new requests
+    ev_io_init(w_client, handle_client_cb, client_socket, EV_READ);
     ev_io_start(_ploop, w_client);
 }
 
 #include <string.h>
-void Server::handle_client(struct ev_loop *loop, struct ev_io *watcher, int revents) {
-    Requests request(watcher->fd);
+void Server::handle_client_cb(struct ev_loop *loop, struct ev_io *watcher, int revents) {
+    // TEST: when client disconnects, receiving a lot of zero byte messages. must not be created new thread that situation.
     
-    printf("handle_client: %d\n", watcher->fd);
+    if (*((bool *)watcher->data) == true){
+        *(bool *)watcher->data = false; // busy, ignore new requests
+        thread *th = new thread(&Server::handle_client, Server::get_instance(), &watcher);
+        // TODO: release thread
+    }
+    
+    
+}
+
+void free_watcher(ev_io **watcher) {
+    printf("free watcher\n");
+    if ((*watcher)->data != NULL) {
+        printf("w1\n");
+        free((*watcher)->data);
+        (*watcher)->data = NULL;
+    }
+    
+    if (*watcher != NULL) {
+        printf("w2\n");
+        free(*watcher);
+        *watcher = NULL;
+    }
+}
+
+void Server::handle_client(ev_io **w) {
+    ev_io *watcher = *w;
+    int sock = watcher->fd;
+    Requests request(sock);
+    
+    printf("handle_client: %d\n", sock);
     
     ErrorCodes err = request.handle_request();
     if (err == ERR_REQ_DISCONNECTED) {
-        // Close socket
-        close(watcher->fd);
+        //*(bool *)watcher->data = false; // for ignoring zero byte messages
+        // stop watcher
+        ev_io_stop(_ploop, watcher);
         
-        // stop io
-        ev_io_stop(loop, watcher);
-        free(watcher);
+        free_watcher(w);
+        
+        //free(watcher->data); // TEST: may cause segmentaion fault? (no this is safe)
+        //free(watcher); // TEST: may cause segmentaion fault? (no this is safe)
+        
+        // Close socket
+        close(sock);
+    }
+    else {
+        *(bool *)watcher->data = true; // available for new requests
     }
 }
+
+
 
 int Server::wait_clients() {
     int result = -1;
     
-    cout << "Waiting for clients.." << endl;
+    printf("Waiting for clients...\n");
     
     // check events
     ev_run(_ploop, 0);
@@ -175,14 +228,14 @@ void Server::add_messagebox(int sesion_id) {
     vector<string> subqueue;
     int size = message_queue.size();
     
-    cout << "add messagebox for " << sesion_id << endl;
+    printf("add messagebox for %d\n", sesion_id);
     
     mtx.lock();
     message_queue.insert(pair<int,vector<string> >(sesion_id, vector<string>()));
     mtx.unlock();
     
     if (size == message_queue.size())
-        cout << "error on adding user\n";
+        printf("error on adding user\n");
 }
 
 void Server::add_message_by_id(int sesion_id, string msg) {
@@ -222,10 +275,10 @@ int Server::check_for_messages(int session_id) {
             printf("%d messages for user%d\n", size, session_id);
     }
     catch (const out_of_range& oor) {
-        cout << "queue size: " << message_queue.size() << endl;
-        cout << "id: " << session_id << endl;
-        cout << "out of range " << oor.what() << endl;
-        cout << "-------------------------------------------------------------------" << endl;
+        printf("queue size: %d\n", (int)message_queue.size());
+        printf("id: %d\n", session_id);
+        printf("out of range %s\n", oor.what());
+        printf("-------------------------------------------------------------------\n");
     }
     
     return size;
@@ -294,11 +347,11 @@ void Server::print_client_status(sockaddr_in client) {
                                             host, NI_MAXHOST, svc, NI_MAXSERV, 0);
     
     if (result) {
-        cout << string(host) << " connected to " << string(svc) << endl;
+        printf("%s connected to %s\n", host, svc);
     }
     else {
         inet_ntop(AF_INET, &client.sin_addr, host, NI_MAXHOST);
-        cout << string(host) << " connected to " << ntohs(client.sin_port) << endl;
+        printf("%s connected to %hu\n", host, client.sin_port);
     }
     
     return;

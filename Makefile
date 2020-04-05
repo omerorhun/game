@@ -5,6 +5,7 @@ CFLAGS= -std=c++11 -ggdb
 LIBS= -lpthread -pthread -lcurl -lev -lcrypto -lssl
 OBJS= ./obj/main.o ./obj/Server.o ./obj/Users.o ./obj/utilities.o
 OBJS+= ./obj/Protocol.o ./obj/Requests.o ./obj/Jwt.o ./obj/base64.o
+OBJS+= ./obj/Matcher.o
 
 all: server
 
@@ -14,7 +15,7 @@ image:
 	@echo "linking $@"
 	@$(CXX) $(CFLAGS) $(OBJS) $(LIBS) -o server
 
-build: main Users Server Jwt base64 Protocol Requests utilities
+build: main Users Server Jwt base64 Protocol Requests utilities Matcher
 
 main: ./src/main.cpp ./inc/Server.h ./inc/Users.h
 	@echo "compiling $@"
@@ -47,6 +48,10 @@ Requests: ./src/Requests.cpp ./inc/Requests.h
 utilities: ./src/utilities.cpp ./inc/utilities.h
 	@echo "compiling $@"
 	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/utilities.cpp -o ./obj/utilities.o
+
+Matcher: ./src/Matcher.cpp ./inc/Matcher.h
+	@echo "compiling $@"
+	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Matcher.cpp -o ./obj/Matcher.o
 
 clean:
 	rm -rf ./obj/*.o server

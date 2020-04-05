@@ -1,4 +1,9 @@
+#ifndef _JWT_H_
+#define _JWT_H_
+
 #include <string>
+
+#include "constants.h"
 
 #define TOKEN_LIFETIME_SEC 1800 // 30 min
 
@@ -25,3 +30,5 @@ class Jwt {
     
     bool is_expired();
 };
+
+#endif // _JWT_H_

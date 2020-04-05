@@ -1,9 +1,12 @@
 #ifndef _USERS_H_
 #define _USERS_H_
 
-#include "json.hpp"
 #include <string>
+
+#include "json.hpp"
+
 #include "errors.h"
+#include "constants.h"
 
 typedef struct {
     int id;

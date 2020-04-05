@@ -1,6 +1,8 @@
 #ifndef _ERRORS_H_
 #define _ERRORS_H_
 
+#include "constants.h"
+
 typedef enum{
     ERR_SUCCESS = 0,
     ERR_CONNECTION,

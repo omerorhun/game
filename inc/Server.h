@@ -13,9 +13,10 @@
 #include <ev.h>
 #else
 #include <ev++.h>
-#endif
+#endif // !CPP_STYLE_LIBEV
 
 #include "errors.h"
+#include "constants.h"
 
 #define SERVER_PORT 1903
 
@@ -26,7 +27,7 @@ class Server {
 #else
     Server();
     int wait_clients();
-#endif
+#endif // CPP_STYLE_LIBEV
     int init_server();
     
     int add_client(int uid);
@@ -57,23 +58,21 @@ class Server {
     std::map<int, std::vector<std::string> > message_queue;
     
     // for select()
-    fd_set _ready_sockets;
     int _clients[SOMAXCONN];
-    std::mutex mtx_clients[SOMAXCONN];
     int client_count;
-    //ErrorCodes add_new_connection(fd_set *p_set);
     
     // for libev
 #if !CPP_STYLE_LIBEV
     ev_io _waccept;
     static struct ev_loop *_ploop;
     static void add_new_connection(struct ev_loop *loop, ev_io *watcher, int revents);
-    static void handle_client(struct ev_loop *loop, ev_io *watcher, int revents);
+    static void handle_client_cb(struct ev_loop *loop, ev_io *watcher, int revents);
+    void handle_client(ev_io **watcher);
 #else
     ev::io _waccept;
     void add_new_connection(ev::io &watcher, int revents);
     void handle_client(ev::io &watcher, int revents);
-#endif
+#endif // !CPP_STYLE_LIBEV
     
 };
 #endif 

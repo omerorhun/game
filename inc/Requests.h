@@ -3,6 +3,8 @@
 
 #include "Protocol.h"
 #include "errors.h"
+#include "constants.h"
+#include <ev.h>
 
 #define REQUEST_HEADER 0x01
 #define ACK 0x01
@@ -40,6 +42,9 @@ class Requests {
   
   void login(int client_id);
   void logout(int client_id);
+  
+  // for libev
+  struct ev_loop *_event_listener;
   
   private:
   Protocol _in_packet;

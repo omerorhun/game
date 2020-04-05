@@ -9,6 +9,7 @@
 // for special ops
 #include "Server.h"
 #include "Users.h"
+#include "Matcher.h"
 
 using namespace std;
 
@@ -21,14 +22,14 @@ int main () {
 #else
     Server server;
 #endif
-
     Users users;
+    Matcher matcher;
     
     if (server.init_server() == -1)
         return -1;
 
 #if CPP_STYLE_LIBEV    
-    cout << "Waiting for clients.." << endl;
+    printf("Waiting for clients...\n");
     loop.run(0);
 #else
     server.wait_clients();
