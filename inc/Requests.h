@@ -2,6 +2,10 @@
 #define _REQUESTS_H_
 
 #include "Protocol.h"
+#include "Matcher.h"
+#include "Server.h"
+#include "GameService.h"
+
 #include "errors.h"
 #include "constants.h"
 #include <ev.h>
@@ -11,6 +15,8 @@
 #define NACK 0x02
 
 #define GET_ONLINE_USERS_LEN 0
+
+#define MATCH_TIMEOUT 15
 
 const std::string jwt_key = "bjk1903";
 
@@ -40,7 +46,7 @@ class Requests {
   void prepare_error_packet(ErrorCodes err);
   void send_response();
   
-  void login(int client_id);
+  void login(ClientConnectionInfo client_conn);
   void logout(int client_id);
   
   // for libev
@@ -53,12 +59,24 @@ class Requests {
   int socket;
   RequestCodes req_code;
   
+  // protocol
   bool set_header(uint8_t header);
   bool set_request_code(RequestCodes req_code);
   bool set_ack(uint8_t ack);
   bool set_token(int id);
   bool add_data(std::string data);
   bool add_data(uint8_t *data, uint16_t len);
+  
+  // match
+  void add_to_match_queue(UserMatchInfo *user);
+  void remove_from_match_queue(UserMatchInfo *user);
+  void cancel_match(int uid);
+  ErrorCodes is_matched(UserMatchInfo *user, time_t start, bool is_blocking);
+  
+  // game
+  int create_game(Rivals rivals);
+  int get_opponent_socket(int op_uid);
+  int get_game_id(int uid);
   
   bool check_request_code();
   bool check_length();

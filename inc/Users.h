@@ -14,7 +14,7 @@ typedef struct {
     std::string username;
     long fb_id;
     std::string picture_url;
-    }UserInfo;
+}RegisterInfo;
 
 class Users {
     

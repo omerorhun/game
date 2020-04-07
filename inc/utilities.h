@@ -11,5 +11,6 @@
 
 void print_hex(const char *header, char *buffer, uint16_t len);
 uint16_t gen_crc16(const uint8_t *data, uint16_t size);
+std::string read_file(const char *file_name);
 
 #endif // _UTILITIES_H_

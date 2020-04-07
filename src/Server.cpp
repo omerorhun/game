@@ -2,6 +2,7 @@
     TODO:
     - requests will be limited by per second
     - there will be a restriction to requests per second from same IP
+    - threads will be pre-allocated
 */
 
 #include <iostream>
@@ -159,8 +160,6 @@ void Server::handle_client_cb(struct ev_loop *loop, struct ev_io *watcher, int r
         thread *th = new thread(&Server::handle_client, Server::get_instance(), &watcher);
         // TODO: release thread
     }
-    
-    
 }
 
 void free_watcher(ev_io **watcher) {
@@ -285,14 +284,17 @@ int Server::check_for_messages(int session_id) {
 }
 
 vector<int> Server::get_online_clients() {
-    return online_clients;
+    vector<int> copy;
+    for (ClientConnectionInfo i : _online_clients)
+        copy.push_back(i.uid);
+    
+    return copy;
 }
 
 #include <algorithm>
-
 bool Server::is_client_online(int uid) {
-    auto it = find(online_clients.begin(), online_clients.end(), uid);
-    if (it == online_clients.end())
+    ClientConnectionInfo *cci = lookup(uid);
+    if (cci == NULL)
         return false;
     
     return true;
@@ -300,39 +302,54 @@ bool Server::is_client_online(int uid) {
 
 mutex mtx_waiting;
 
-int Server::login(int uid) {
-    vector<int>::iterator it;
+int Server::login(ClientConnectionInfo client_conn) {
     
     // check if client logged in
-    if (lookup(uid, &it)) {
+    if (lookup(client_conn.uid) != NULL) {
         printf("already logged in\n");
         return 0;
     }
     
     // add client
     mtx_waiting.lock();
-    online_clients.push_back(uid);
+    _online_clients.push_back(client_conn);
     mtx_waiting.unlock();
     
     return 1;
 }
 
 int Server::logout(int uid) {
-    vector<int>::iterator it;
-    if (!lookup(uid, &it))
-        return 0;
     
-    online_clients.erase(it);
+    for (int i = 0; i < _online_clients.size(); i++) {
+        if (_online_clients[i].uid == uid) {
+            _online_clients.erase(_online_clients.begin() + i);
+            return 1;
+        }
+    }
     
-    return 1;
+    return 0;
 }
 
-bool Server::lookup(int uid, vector<int>::iterator *it) {
-    *it = find(online_clients.begin(), online_clients.end(), uid);
-    if (*it == online_clients.end())
-        return false;
+// TODO: add mutex here
+ClientConnectionInfo *Server::lookup(int uid) {
+    ClientConnectionInfo *ret = NULL;
+    for (int i = 0; i < _online_clients.size(); i++) {
+        if (_online_clients[i].uid == uid) {
+            ret = &_online_clients[i];
+            break;
+        }
+    }
     
-    return true;
+    return ret;
+}
+
+int Server::get_socket(int uid) {
+    ClientConnectionInfo *cci = lookup(uid);
+    
+    if (cci == NULL)
+        return -1;
+    
+    return cci->socket;
 }
 
 #include <string.h>

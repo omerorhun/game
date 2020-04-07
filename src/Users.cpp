@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "Users.h"
+#include "utilities.h"
 #include <curl/curl.h>
 #include "json.hpp"
 #include <fstream>
@@ -15,7 +16,6 @@
 using namespace std;
 
 static size_t write_func(void *ptr, size_t size, size_t count, void *stream);
-string read_file(const char *file_name);
 
 Users *Users::p_instance = NULL;
 
@@ -53,7 +53,7 @@ ErrorCodes Users::register_user(int *client_id, string access_token) {
     
     // Token verificated, then sign up or login
     // Create new session
-    UserInfo user_info;
+    RegisterInfo user_info;
     user_info.fb_id = fb_id;
     user_info.username = user_name;
     user_info.picture_url = user_url;
@@ -171,23 +171,6 @@ nlohmann::json Users::get_user_data(int uid) {
     }
     
     return user;
-}
-
-string read_file(const char *file_name) {
-    ifstream input_stream;
-    stringstream buffer;
-    
-    input_stream.open(file_name, ifstream::binary);
-    
-    if (input_stream.is_open()) {
-        buffer << input_stream.rdbuf();
-        input_stream.close();
-    }
-    else {
-        printf("File couldn't opened\n");
-    }
-    
-    return buffer.str();
 }
 
 ErrorCodes Users::check_errors(nlohmann::json response_json) {

@@ -3,7 +3,6 @@
 #include <string.h>
 
 #include "Requests.h"
-#include "Server.h"
 #include "Users.h"
 #include "Jwt.h"
 #include "Protocol.h"
@@ -135,7 +134,11 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
                 printf("fb success\n");
                 set_request_code(REQ_FB_LOGIN);
                 set_token(uid);
-                login(uid);
+                ClientConnectionInfo user_conn;
+                user_conn.socket = socket;
+                user_conn.uid = uid;
+                
+                login(user_conn);
                 break;
             case ERR_FB_UNKNOWN:
             case ERR_FB_INVALID_ACCESS_TOKEN:
@@ -190,29 +193,57 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         }
     }
     else if (req_code == REQ_MATCH) {
-        User user;
+        if (indata.size() != 0) {
+            printf("size: %d\n", (int)indata.size());
+            print_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
+            ret = ERR_REQ_WRONG_LENGTH;
+            goto L_ERROR;
+        }
+        UserMatchInfo user;
         printf("match request from : %d\n", uid);
         // find opponent
         // 1- add client's uid to the 'waiting matches list'
+        //  Note: matcher will find an opponent from waiting list and throws an event
         user.uid = uid;
         user.op_uid = 0;
-        Matcher::get_instance()->add(&user);
+        add_to_match_queue(&user);
         
-        //  Note: matcher will find an opponent from waiting list and throws an event
-        // 2- start event listener
-        // TODO: add timeout
-        
+        // 2- wait for match with timeout
         printf("waiting match for %d...\n", uid);
-        while(user.op_uid == 0) {
-            // wait
+        time_t start_dt = time(0);
+        ret = is_matched(&user, start_dt, true);
+        if (ret != ERR_SUCCESS) {
+            // match failed. send error message
+            printf("match has timed out\n");
+            goto L_ERROR;
         }
+        
+        // create new game
+        int game_id = 0;
+        if (user.uid > user.op_uid) {
+            Rivals riv;
+            riv.user1.uid = user.uid;
+            riv.user1.socket = socket;
+            riv.user2.uid = user.op_uid;
+            riv.user2.uid = get_opponent_socket(user.op_uid);
+            game_id = create_game(riv);
+            // is game id must be saved?
+        }
+        else {
+            while (game_id == 0)
+                game_id = get_game_id(user.uid);
+        }
+        
+        // match success
         printf("%d matched with %d\n", user.uid, user.op_uid);
-        
-        // 3- when event occurs, get opponent info :
-        //nlohmann::json op = users->get_user_data(user.op_uid);
-        
-        // 4- prepare package for transmitting to the client
         set_request_code(REQ_MATCH);
+        
+        // 3- get opponent info :
+        nlohmann::json op = users->get_user_data(user.op_uid);
+        op["game_id"] = game_id;
+        // 4- prepare package for transmitting to the client
+        add_data(op.dump());
+#if 0
         uint8_t buffer[4] = {
             B0(user.op_uid),
             B1(user.op_uid),
@@ -221,14 +252,42 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         };
         
         add_data(buffer, 4);
-        
+#endif
         // end
     }
     else if (req_code == REQ_CANCEL_MATCH) {
+        if (indata.size() != 0) {
+            printf("size: %d\n", (int)indata.size());
+            print_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
+            ret = ERR_REQ_WRONG_LENGTH;
+            goto L_ERROR;
+        }
         
+        // remove user from match queue
+        cancel_match(uid);
+        
+        set_request_code(REQ_CANCEL_MATCH);
+        uint8_t data = ACK;
+        add_data(&data, 1);
     }
     else if(req_code == REQ_START_GAME) {
+        // get game id from indata
         
+        Game *game = GameService::get_instance()->lookup(uid);
+        // set acception for this client
+        game->accept_game(uid);
+        
+        // wait for opponents answer
+        while(!game->is_ready());
+        
+        // start game
+        game->start_game(uid);
+        
+        // get questions
+        string questions = game->get_questions();
+        
+        // send questions
+        add_data(questions);
     }
     else {
         // unknown request received
@@ -248,210 +307,6 @@ void Requests::prepare_error_packet(ErrorCodes err) {
     _out_packet.add_data(&buffer, 1);
     _out_packet.set_crc();
 }
-
-#if 0
-    else if (req_code == REQ_GET_ONLINE_USERS) {
-        data = (char *)malloc(sizeof(char) * )
-        vector<int> onl_cli = srv->get_online_clients();
-        for (int i = 0; i < onl_cli.size(); i++) {
-            char temp[32];
-            memset(temp, 0, 32);
-            printf("%d,", onl_cli.at(i));
-            // TODO: burada kaldı. online kullanıcı bilgilerini gönder
-            
-            sprintf(temp, "%d,", onl_cli.at(i));
-            strcat(tx_buffer, temp);
-        }
-        
-        int len = strlen(tx_buffer);
-        tx_buffer[len++-1] = '\r';
-        tx_buffer[len++] = '\n';
-        
-        send(socket, tx_buffer, strlen(tx_buffer), 0);
-    }
-    else if (state == SEND_MATCH_REQUEST) {
-        int op_id;
-        char *ptr = strstr(request, "session_id");
-        
-        if (ptr) {
-            sscanf(ptr, "session_id=%d\n", &op_id);
-            
-            // check if the opponent is online
-            if (srv->is_client_online(op_id)) {
-                // send error message to client
-                char error_msg[] = "Client is offline\r\n";
-                send(socket, error_msg, strlen(error_msg), 0);
-                break;
-            }
-            
-            // add the request to the opponents queue
-            char buffer[64];
-            memset(&buffer, 0, 64);
-            sprintf(buffer, "match_get,session_id=%d\r\n", session_id);
-            string msg(buffer);
-            
-            srv->add_message_by_id(op_id, msg);
-            printf("session_id:%d - message added to %d\n", session_id, op_id);
-        }
-        
-        state = IDLE;
-    }
-    else if (state == GET_MATCH_REQUEST) {
-        // transmit the match request to client
-        
-        printf("get match request: %s\n", request);
-        
-        char *ptr = strstr(request, "session_id=");
-        int request_owner_id = 0;
-        sscanf(ptr, "session_id=%d", &request_owner_id);
-        
-        char tx_buffer[RX_BUFFER_SIZE];
-        memset(&tx_buffer, 0, RX_BUFFER_SIZE);
-        sprintf(tx_buffer, "Do you want to accept the match (session_id:%d)\r\n", request_owner_id);
-        
-        send(socket, tx_buffer, strlen(tx_buffer), 0);
-        
-        state = IDLE;
-    }
-    else if (state == SEND_RESPONSE_TO_MATCH_REQUEST) {
-        // add the response to the opponents queue
-        char *ptr = strstr(request, "session_id=");
-        
-        int request_owner_id;
-        sscanf(ptr, "session_id=%d\r\n", &request_owner_id);
-        
-        char buffer[64];
-        memset(&buffer, 0, 64);
-        if (strstr(ptr, "yes")) {
-            sprintf(buffer, "accept,session_id=%d,yes\r\n", session_id);
-            
-            string msg(buffer);
-            srv->add_message_by_id(request_owner_id, msg);
-            opponent_id = request_owner_id;
-        }
-        else {
-            sprintf(buffer, "accept,session_id=%d,no\r\n", session_id);
-            
-            string msg(buffer);
-            srv->add_message_by_id(request_owner_id, msg);
-        }
-        
-        state = IDLE;
-    }
-    else if (state == GET_RESPONSE_TO_MATCH_REQUEST) {
-        // transmit the response to client
-        char *ptr = strstr(request, "session_id=");
-        int op_id;
-        sscanf(ptr, "session_id=%d,yes\r\n", &op_id);
-        
-        ptr = strstr(ptr, ",");
-        ptr++;
-        if (strcmp(ptr, "yes\r\n") == 0) {
-            opponent_id = op_id;
-            
-            // send message to know match has succeed
-            char tx_buffer[] = "Matched\r\n";
-            send(socket, tx_buffer, strlen(tx_buffer), 0);
-        }
-        else {
-            char error_msg[] = "Couldn't matched\r\n";
-            send(socket, error_msg, strlen(error_msg), 0);
-        }
-        
-        // note: client can send messages to opponent from now
-        state = IDLE;
-    }
-    else if (state == SEND_MESSAGE_REQUEST) {
-        
-        // TEST: check if opponent is online
-        if (srv->is_client_online(opponent_id)) {
-            string msg = "disc_op";
-            srv->add_message_by_id(session_id, msg);
-        }
-        else {
-            // add the message to the opponents queue
-            char *ptr = strstr(request, ",");
-            if (ptr) {
-                ptr++;
-                string msg = "tx_msg,";
-                msg.append(string(ptr));
-                srv->add_message_by_id(opponent_id, msg);
-            }
-        }
-        
-        state = IDLE;
-    }
-    else if (state == GET_MESSAGE_REQUEST) {
-        // transmit the message to client
-        char tx_buffer[RX_BUFFER_SIZE];
-        memset(&tx_buffer, 0, RX_BUFFER_SIZE);
-        sscanf(request, "tx_msg,%[^\n]\r\n", tx_buffer);
-        send(socket, tx_buffer, strlen(tx_buffer), 0);
-        state = IDLE;
-    }
-    else if (state == DISCONNECT_REQUEST) {
-        // if the request is a disconnection request
-        // let the opponent know that client is disconnected (add opponents queue)
-        string msg = "disc_op\r\n";
-        logout();
-        
-        srv->add_message_by_id(opponent_id, msg);
-        
-        // close socket
-        close(socket);
-        
-        state = IDLE;
-    }
-    else if (state == OPPONENT_DISCONNECTED) {
-        // let the client know that opponent is disconnected (transmit to client)
-        char tx_buffer[] = "Client disconnected\r\n";
-        send(socket, tx_buffer, strlen(tx_buffer), 0);
-        
-        // close socket
-        //close(new_client.get_socket());
-        state = IDLE;
-    }
-    else if (state == SIGN_IN_REQUEST_RECEIVED) {
-        char *ptr = strstr(request, ",");
-        ptr++;
-        
-        char access_token[ACCESS_TOKEN_SIZE];
-        if (ptr) {
-            int ret = 0;
-            if ((ret = sscanf(ptr, "access_token=%[^\n]\n", access_token))) {
-                printf("ret: %d\n", ret);
-                printf("access_token: %s\n", access_token);
-                
-                char tx_buffer[RX_BUFFER_SIZE];
-                memset(&tx_buffer, 0, RX_BUFFER_SIZE);
-                ErrorUsers ret = Users::get_instance()->register_user(this, string(access_token));
-                switch (ret) {
-                    case ERR_USERS_SIGNUP_SUCCESS:
-                        login();
-                        strcpy(tx_buffer, "Signed up\r\n");
-                        break;
-                    case ERR_USERS_LOGIN_SUCCESS:
-                        login();
-                        strcpy(tx_buffer, "Logged in\r\n");
-                        break;
-                    case ERR_USERS_FB:
-                        strcpy(tx_buffer, "Error\r\n");
-                        break;
-                }
-                
-                send(socket, tx_buffer, strlen(tx_buffer), 0);
-            }
-        }
-        
-        state = IDLE;
-    }
-    else if (state == LOGOUT_REQUEST) {
-        logout();
-    }
-    else if (state == TEST) {
-        
-    }
-#endif
 
 bool Requests::check_request_code() {
     if (_in_packet.get_request_code() < REQ_COUNT)
@@ -490,12 +345,57 @@ bool Requests::add_data(uint8_t *data, uint16_t len) {
     return _out_packet.add_data(data, len);
 }
 
-void Requests::login(int client_id) {
+void Requests::login(ClientConnectionInfo client_conn) {
     //login
-    Server::get_instance()->login(client_id);
+    Server::get_instance()->login(client_conn);
 }
 
 void Requests::logout(int client_id) {
     //logout
     Server::get_instance()->logout(client_id);
+}
+
+void Requests::add_to_match_queue(UserMatchInfo *user) {
+    Matcher::get_instance()->add(user);
+}
+
+void Requests::remove_from_match_queue(UserMatchInfo *user) {
+    Matcher::get_instance()->remove(user);
+}
+
+void Requests::cancel_match(int uid) {
+    UserMatchInfo *user = Matcher::get_instance()->lookup(uid);
+    if (user != NULL)
+        Matcher::get_instance()->remove(user);
+}
+
+ErrorCodes Requests::is_matched(UserMatchInfo *user, time_t start, bool is_blocking) {
+    if (!is_blocking) {
+        if (user->op_uid == 0)
+            return ERR_REQ_MATCH_FAIL;
+        
+        return ERR_SUCCESS;
+    }
+    
+    while(user->op_uid == 0) {
+        // wait
+        if (time(0) > (start + MATCH_TIMEOUT)) {
+            remove_from_match_queue(user);
+            return ERR_REQ_MATCH_FAIL;
+        }
+    }
+    
+    return ERR_SUCCESS;
+}
+
+int Requests::create_game(Rivals rivals) {
+    return GameService::get_instance()->create_game(rivals);
+}
+
+int Requests::get_opponent_socket(int op_uid) {
+    return Server::get_instance()->get_socket(op_uid);
+}
+
+int Requests::get_game_id(int uid) {
+    return GameService::get_instance()->get_game_id(uid);
 }

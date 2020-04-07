@@ -9,50 +9,49 @@
 using namespace std;
 
 Matcher *Matcher::_p_instance = NULL;
+vector<UserMatchInfo *> Matcher::_waiting_matches;
 mutex g_mtx;
 
 Matcher::Matcher() {
     if (_p_instance == NULL) {
         _p_instance = this;
         
-        _main_watcher = new ev_async();
-        _main_loop = ev_loop_new(0);
-        
-        lock_main.unlock();
+        _p_watcher = new ev_async();
+        _p_loop = ev_loop_new(0);
         
         // start main watcher
-        ev_async_init(_main_watcher, find_match_cb);
-        ev_async_start(_main_loop, _main_watcher);
+        ev_async_init(_p_watcher, find_match_cb);
+        ev_async_start(_p_loop, _p_watcher);
         
         // start main event listener
-        main_th = new thread(&Matcher::start_loop, this, _main_loop);
+        _p_matcher_thread = new thread(&Matcher::start_loop, this, _p_loop);
     }
 }
 
 void Matcher::find_match_cb(struct ev_loop *loop, ev_async *watcher, int revents) {
-    Matcher *matcher = Matcher::get_instance();
-    printf("%s\n", __func__);
-    int remaining = matcher->_waiting_matches.size();
+    int remaining = _waiting_matches.size();
+    
     printf("remaining: %d\n", remaining);
-    while (remaining > 1) {
-        // find random opponent here
-        int opponent = rand()%(remaining - 1) + 1;
-        
-        User *first = matcher->_waiting_matches[0];
-        User *second = matcher->_waiting_matches[opponent];
-        
-        first->op_uid = second->uid;
-        second->op_uid = first->uid;
-        
+    while (_waiting_matches.size() > 1) {
         g_mtx.lock();
+        
+        // some users could be canceled their match requests
+        if ((remaining = _waiting_matches.size()) <= 1)
+            break;
+        
+        // find random opponent here
+        int op_idx = rand()%(remaining - 1) + 1;
+        
+        _waiting_matches[0]->op_uid = _waiting_matches[op_idx]->uid;
+        _waiting_matches[op_idx]->op_uid = _waiting_matches[0]->uid;
+        
         // first, remove opponent's uid from the list
-        matcher->_waiting_matches.erase(matcher->_waiting_matches.begin() + opponent);
+        _waiting_matches.erase(_waiting_matches.begin() + op_idx);
         
         // then, remove this uid from the list
-        matcher->_waiting_matches.erase(matcher->_waiting_matches.begin());
-        g_mtx.unlock();
+        _waiting_matches.erase(_waiting_matches.begin());
         
-        remaining -= 2;
+        g_mtx.unlock();
     }
 }
 
@@ -65,15 +64,34 @@ Matcher *Matcher::get_instance() {
     return _p_instance;
 }
 
-void Matcher::add(User *user) {
+void Matcher::add(UserMatchInfo *user) {
     
-    g_mtx.lock();
-    // pass user info
     // add user to the waiting list
+    g_mtx.lock();
     _waiting_matches.push_back(user);
     g_mtx.unlock();
     
-    // send find_match_watcher
-    if (ev_async_pending(_main_watcher) == false)
-        ev_async_send(_main_loop, _main_watcher);
+    // send event to find match listener
+    if (ev_async_pending(_p_watcher) == false)
+        ev_async_send(_p_loop, _p_watcher);
+}
+
+void Matcher::remove(UserMatchInfo *user) {
+    //User usr = *user;
+    g_mtx.lock();
+    auto it = find(_waiting_matches.begin(), _waiting_matches.end(), user);
+    _waiting_matches.erase(it);
+    g_mtx.unlock();
+}
+
+UserMatchInfo *Matcher::lookup(int uid) {
+    UserMatchInfo *ret = NULL;
+    g_mtx.lock();
+    for (int i = 0; i < _waiting_matches.size(); i++) {
+        if (_waiting_matches[i]->uid == uid) {
+            ret = _waiting_matches[i];
+            break;
+        }
+    }
+    g_mtx.unlock();
 }

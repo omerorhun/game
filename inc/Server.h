@@ -20,6 +20,11 @@
 
 #define SERVER_PORT 1903
 
+typedef struct {
+    int uid;
+    int socket;
+}ClientConnectionInfo;
+
 class Server {
     public:
 #if CPP_STYLE_LIBEV
@@ -32,9 +37,10 @@ class Server {
     
     int add_client(int uid);
     int add_client_to_waiting_list(int uid);
-    int login(int uid);
+    int login(ClientConnectionInfo client_conn);
     int logout(int uid);
-    bool lookup(int uid, std::vector<int>::iterator *it);
+    ClientConnectionInfo *lookup(int uid);
+    int get_socket(int uid);
     
     static Server *get_instance();
     
@@ -52,7 +58,7 @@ class Server {
     static Server *p_instance;
     void add_messagebox(int id);
     
-    std::vector<int> online_clients;
+    std::vector<ClientConnectionInfo> _online_clients;
     std::vector<int> waiting_clients;
     std::vector<int> active_clients;
     std::map<int, std::vector<std::string> > message_queue;

@@ -1,8 +1,13 @@
 
 #include <stdio.h>
+#include <string.h>
 #include <ctype.h>
+#include <fstream>
+#include <sstream>
 
 #include "utilities.h"
+
+using namespace std;
 
 void print_hex(const char *header, char *buffer, uint16_t len) {
     
@@ -100,4 +105,21 @@ uint16_t gen_crc16(const uint8_t *data, uint16_t size) {
     }
 
     return crc;
+}
+
+string read_file(const char *file_name) {
+    ifstream input_stream;
+    stringstream buffer;
+    
+    input_stream.open(file_name, ifstream::binary);
+    
+    if (input_stream.is_open()) {
+        buffer << input_stream.rdbuf();
+        input_stream.close();
+    }
+    else {
+        printf("File couldn't opened\n");
+    }
+    
+    return buffer.str();
 }
