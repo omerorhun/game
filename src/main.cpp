@@ -1,5 +1,11 @@
 /*
     Server 23.02.2020
+    
+    TODO:
+    - requests will be limited by per second
+    - there will be a restriction to requests per second from same IP
+    - threads will be pre-allocated
+    - logs must be printed while on idle process. there must be idle process.
 */
 
 // standart libs

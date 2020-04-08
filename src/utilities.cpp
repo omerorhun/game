@@ -4,13 +4,16 @@
 #include <ctype.h>
 #include <fstream>
 #include <sstream>
+#include <mutex>
 
 #include "utilities.h"
 
 using namespace std;
 
+mutex mtx_print;
+
 void print_hex(const char *header, char *buffer, uint16_t len) {
-    
+    mtx_print.lock();
     printf("[%s]: (%d)\n", header, len);
     printf("---------------------------------------------------\n");
     
@@ -53,8 +56,8 @@ void print_hex(const char *header, char *buffer, uint16_t len) {
     }
     
     putchar('\n');
+    mtx_print.unlock();
 }
-
 
 #define CRC16 0x8005
 

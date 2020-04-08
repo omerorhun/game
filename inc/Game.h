@@ -2,6 +2,7 @@
 #define _GAME_H_
 
 typedef enum {
+    GAME_WAITING_FOR_ACCEPTIONS,
     GAME_RIVALS_READY,
     GAME_QUESTIONS_READY,
     GAME_STARTED,

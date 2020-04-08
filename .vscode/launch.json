@@ -21,7 +21,9 @@
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
                 }
-            ]
+            ],
+            //"preLaunchTask": "build_server",
+            "miDebuggerPath": "/usr/bin/gdb"
         }
     ]
 }

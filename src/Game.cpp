@@ -2,6 +2,7 @@
 #include <string>
 
 #include "Game.h"
+#include "Questions.h"
 
 using namespace std;
 
@@ -9,6 +10,7 @@ Game::Game(int game_id, Rivals rivals) {
     _game_uid = game_id;
     _rivals.user1 = rivals.user1;
     _rivals.user2 = rivals.user2;
+    _state = GAME_WAITING_FOR_ACCEPTIONS;
 }
 
 int Game::get_game_id() {
@@ -40,14 +42,15 @@ void Game::start_game(int uid) {
     if (uid == _rivals.user1.uid) {
         
         // get questions from db
+        _questions = Questions::get_instance()->get_question(5);
+        
         _state = GAME_QUESTIONS_READY;
     }
 }
 
 string Game::get_questions() {
-    if (_state == GAME_QUESTIONS_READY) {
-        return _questions;
-    }
+    // TODO: add timeout
+    while (_state != GAME_QUESTIONS_READY);
     
-    return string("");
+    return _questions;
 }

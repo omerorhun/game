@@ -16,6 +16,10 @@ GameService::GameService() {
 }
 
 GameService *GameService::get_instance() {
+    if (_p_instance == NULL) {
+        GameService();
+    }
+    
     return _p_instance;
 }
 
@@ -26,9 +30,9 @@ int GameService::create_game(Rivals rivals) {
     int game_id = 0;
     
     // if not create new game
-    Game game(_s_game_count, rivals);
+    Game game(_s_game_count + 1, rivals);
     _games.push_back(game);
-    int game_id = _games[_s_game_count++].get_game_id();
+    game_id = _games[_s_game_count++].get_game_id();
     
     return game_id;
 }
@@ -42,8 +46,9 @@ Game *GameService::lookup(int uid) {
     Game *game = NULL;
     
     for (int i = 0; i < _games.size(); i++) {
-        Rivals *riv = &_games[i].get_rivals();
-        if (riv->user1.uid == uid) {
+        Rivals riv = _games[i].get_rivals();
+        if ((riv.user1.uid == uid) || 
+            (riv.user2.uid == uid)) {
             game = &_games[i];
             break;
         }
@@ -53,5 +58,10 @@ Game *GameService::lookup(int uid) {
 }
 
 int GameService::get_game_id(int user_id) {
-    return lookup(user_id)->get_game_id();
+    Game *game = lookup(user_id);
+    if (game == NULL)
+        return 0;
+    
+    printf("game found\n");
+    return game->get_game_id();
 }

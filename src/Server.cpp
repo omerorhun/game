@@ -1,10 +1,3 @@
-/*
-    TODO:
-    - requests will be limited by per second
-    - there will be a restriction to requests per second from same IP
-    - threads will be pre-allocated
-*/
-
 #include <iostream>
 
 #include <sys/types.h>

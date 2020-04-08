@@ -5,7 +5,7 @@ CFLAGS= -std=c++11 -ggdb
 LIBS= -lpthread -pthread -lcurl -lev -lcrypto -lssl
 OBJS= ./obj/main.o ./obj/Server.o ./obj/Users.o ./obj/utilities.o
 OBJS+= ./obj/Protocol.o ./obj/Requests.o ./obj/Jwt.o ./obj/base64.o
-OBJS+= ./obj/Matcher.o
+OBJS+= ./obj/Matcher.o ./obj/Game.o ./obj/GameService.o ./obj/Questions.o
 
 all: server
 
@@ -15,7 +15,7 @@ image:
 	@echo "linking $@"
 	@$(CXX) $(CFLAGS) $(OBJS) $(LIBS) -o server
 
-build: main Users Server Jwt base64 Protocol Requests utilities Matcher
+build: main Users Server Jwt base64 Protocol Requests utilities Matcher Game GameService Questions
 
 main: ./src/main.cpp ./inc/Server.h ./inc/Users.h
 	@echo "compiling $@"
@@ -52,6 +52,18 @@ utilities: ./src/utilities.cpp ./inc/utilities.h
 Matcher: ./src/Matcher.cpp ./inc/Matcher.h
 	@echo "compiling $@"
 	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Matcher.cpp -o ./obj/Matcher.o
+
+Game: ./src/Game.cpp ./inc/Game.h
+	@echo "compiling $@"
+	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Game.cpp -o ./obj/Game.o
+
+GameService: ./src/GameService.cpp ./inc/GameService.h
+	@echo "compiling $@"
+	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/GameService.cpp -o ./obj/GameService.o
+
+Questions: ./src/Questions.cpp ./inc/Questions.h
+	@echo "compiling $@"
+	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Questions.cpp -o ./obj/Questions.o
 
 clean:
 	rm -rf ./obj/*.o server

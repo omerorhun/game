@@ -1,0 +1,84 @@
+{
+    "questions": [
+        {
+            "question": "Süper Lig'e transfer olduğu 2018 yılında 32 gole imza atarak harikalar yaratan Mbaye Diagne, genç yaşlarında hangi dev kulüp tarafından transfer edilmişti?",
+            "a": "Juventus",
+            "b": "Liverpool",
+            "c": "Borussia Dortmund",
+            "d": "Paris Saint Germain",
+            "answer": "a"
+        },
+        {
+            "question": "Süper Lig'in ilk yarısında Alanyaspor'daki performansıyla dikkat çeken stoper Merih Demiral, Akdeniz ekibine hangi kulüpten kiralanmıştı?",
+            "a": "Udinese",
+            "b": "Fenerbahçe",
+            "c": "Sporting Lizbon",
+            "d": "Augsburg",
+            "answer": "c"
+        },
+        {
+            "question": "Bu sezon Sassuolo'da izlediğimiz, daha önce Milan'da yıllarca forma giymiş futbolcu kimdir?",
+            "a": "Kevin-Prince Boateng",
+            "b": "Ignazio Abate",
+            "c": "Antonio Nocerino",
+            "d": "Giampaolo Pazzini",
+            "answer": "a"
+        },
+        {
+            "question": "La Liga'da bu sezon sürpriz bir çıkış yaparak ilk yarıyı Real Madrid'in sadece 1 puan gerisinde 5. sırada bitiren ekip hangisidir?",
+            "a": "Real Betis",
+            "b": "Getafe",
+            "c": "Girona",
+            "d": "Alaves",
+            "answer": "d"
+        },
+        {
+            "question": "Man City alt yapısında yetişen, bu sezon Bournemouth'un sağ kanadında harikalar yaratarak dev kulüplerin radarına giren futbolcu kimdir?",
+            "a": "James Maddison",
+            "b": "David Brooks",
+            "c": "Gerard Deulofeu",
+            "d": "Ryan Fraser",
+            "answer": "b"
+        },
+        {
+            "question": "2018 Dünya Kupası'nı kazanan Fransa, yarı finaldeki rakibi Belçika'yı tek golle geçmişti. O gol kime aitti?",
+            "a": "Kylian Mbappe",
+            "b": "Paul Pogba",
+            "c": "Antoine Griezmann",
+            "d": "Samuel Umtiti",
+            "answer": "d"
+        },
+        {
+            "question": "2018 Dünya Kupası'nda forma giyen en genç oyuncu kimdir?",
+            "a": "Achraf Hakimi",
+            "b": "Daniel Arzani",
+            "c": "Ismaila Sarr",
+            "d": "Julian Brandt",
+            "answer": "b"
+        },
+        {
+            "question": "Luka Modric'in birinci olduğu Ballon d'Or sıralamasında hangi oyuncu Top 10 dışında kaldı?",
+            "a": "Lionel Messi",
+            "b": "Kevin De Bruyne",
+            "c": "Luis Suarez",
+            "d": "Eden Hazard",
+            "answer": "c"
+        },
+        {
+            "question": "2018/19 sezonuna girilirken 'en pahalı transfer' konusunda Cristiano Ronaldo'nun Juventus'a geçişi yılın rekoruydu. Peki, ikinci sıradaki pahalı transfer hangisiydi?",
+            "a": "Riyad Mahrez -> Manchester City",
+            "b": "Thomas Lemar -> Atletico Madrid",
+            "c": "Alisson -> Liverpool",
+            "d": "Kepa -> Chelsea",
+            "answer": "d"
+        },
+        {
+            "question": "2019'da 40 yaşını dolduracak olmasına rağmen, Serie A'da ligin ilk yarısında 3 gol atan ve hala aktif futbol hayatını sürdüren yaşlı kurt kimdir?",
+            "a": "Fabio Quagliarella",
+            "b": "Sergio Floccari",
+            "c": "Sergio Pelissier",
+            "d": "Andrea Caracciolo",
+            "answer": "c"
+        }
+    ]
+}

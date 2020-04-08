@@ -224,8 +224,10 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
             Rivals riv;
             riv.user1.uid = user.uid;
             riv.user1.socket = socket;
+            riv.user1.accept = false;
             riv.user2.uid = user.op_uid;
-            riv.user2.uid = get_opponent_socket(user.op_uid);
+            riv.user2.socket = get_opponent_socket(user.op_uid);
+            riv.user2.accept = false;
             game_id = create_game(riv);
             // is game id must be saved?
         }
@@ -286,6 +288,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         // get questions
         string questions = game->get_questions();
         
+        set_request_code(REQ_START_GAME);
         // send questions
         add_data(questions);
     }

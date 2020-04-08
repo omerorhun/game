@@ -2,6 +2,7 @@
 #define _UTILITIES_H_
 
 #include <stdint.h>
+#include <string>
 #include "constants.h"
 
 #define B0(x)               (uint8_t)((x) & 0xFF)
