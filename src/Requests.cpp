@@ -74,6 +74,9 @@ ErrorCodes Requests::handle_request() {
     ErrorCodes ret = get_request();
     if (ret == ERR_CONNECTION) {
         printf("Client disconnected\n");
+        logout(get_uid(socket));
+        
+        // TODO: if matched, send notification to opponent. maybe with event
         return ERR_REQ_DISCONNECTED;
     }
     else if (ret != ERR_SUCCESS) {
@@ -226,7 +229,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
             riv.user1.socket = socket;
             riv.user1.accept = false;
             riv.user2.uid = user.op_uid;
-            riv.user2.socket = get_opponent_socket(user.op_uid);
+            riv.user2.socket = get_socket(user.op_uid);
             riv.user2.accept = false;
             game_id = create_game(riv);
             // is game id must be saved?
@@ -287,10 +290,12 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         
         // get questions
         string questions = game->get_questions();
-        
+        nlohmann::json data_json = nlohmann::json::parse(questions);
+        data_json["start_dt"] = game->get_start_dt();
         set_request_code(REQ_START_GAME);
+        
         // send questions
-        add_data(questions);
+        add_data(data_json.dump());
     }
     else {
         // unknown request received
@@ -395,8 +400,12 @@ int Requests::create_game(Rivals rivals) {
     return GameService::get_instance()->create_game(rivals);
 }
 
-int Requests::get_opponent_socket(int op_uid) {
+int Requests::get_socket(int op_uid) {
     return Server::get_instance()->get_socket(op_uid);
+}
+
+int Requests::get_uid(int socket) {
+    return Server::get_instance()->get_uid(socket);
 }
 
 int Requests::get_game_id(int uid) {

@@ -286,7 +286,7 @@ vector<int> Server::get_online_clients() {
 
 #include <algorithm>
 bool Server::is_client_online(int uid) {
-    ClientConnectionInfo *cci = lookup(uid);
+    ClientConnectionInfo *cci = lookup_by_uid(uid);
     if (cci == NULL)
         return false;
     
@@ -298,7 +298,7 @@ mutex mtx_waiting;
 int Server::login(ClientConnectionInfo client_conn) {
     
     // check if client logged in
-    if (lookup(client_conn.uid) != NULL) {
+    if (lookup_by_uid(client_conn.uid) != NULL) {
         printf("already logged in\n");
         return 0;
     }
@@ -324,7 +324,7 @@ int Server::logout(int uid) {
 }
 
 // TODO: add mutex here
-ClientConnectionInfo *Server::lookup(int uid) {
+ClientConnectionInfo *Server::lookup_by_uid(int uid) {
     ClientConnectionInfo *ret = NULL;
     for (int i = 0; i < _online_clients.size(); i++) {
         if (_online_clients[i].uid == uid) {
@@ -336,13 +336,34 @@ ClientConnectionInfo *Server::lookup(int uid) {
     return ret;
 }
 
+ClientConnectionInfo *Server::lookup_by_socket(int socket) {
+    ClientConnectionInfo *ret = NULL;
+    for (int i = 0; i < _online_clients.size(); i++) {
+        if (_online_clients[i].socket == socket) {
+            ret = &_online_clients[i];
+            break;
+        }
+    }
+    
+    return ret;
+}
+
 int Server::get_socket(int uid) {
-    ClientConnectionInfo *cci = lookup(uid);
+    ClientConnectionInfo *cci = lookup_by_uid(uid);
     
     if (cci == NULL)
         return -1;
     
     return cci->socket;
+}
+
+int Server::get_uid(int socket) {
+    ClientConnectionInfo *cci = lookup_by_socket(socket);
+    
+    if (cci == NULL)
+        return -1;
+    
+    return cci->uid;
 }
 
 #include <string.h>

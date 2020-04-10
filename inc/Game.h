@@ -1,6 +1,8 @@
 #ifndef _GAME_H_
 #define _GAME_H_
 
+#include <time.h>
+
 typedef enum {
     GAME_WAITING_FOR_ACCEPTIONS,
     GAME_RIVALS_READY,
@@ -29,9 +31,11 @@ class Game {
     bool is_ready();
     void start_game(int uid);
     std::string get_questions();
+    time_t get_start_dt();
     
     private:
     int _game_uid;
+    time_t _start_dt;
     Rivals _rivals;
     GameState _state;
     std::string _questions;

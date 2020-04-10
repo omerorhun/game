@@ -38,7 +38,7 @@ string Questions::get_question(int count) {
         int idx = rand()%questions["questions"].size();
         
         // add to return json object
-        ret.push_back(questions["questions"].at(idx));
+        ret["questions"].push_back(questions["questions"].at(idx));
         
         // delete from copy
         questions["questions"].erase(idx);

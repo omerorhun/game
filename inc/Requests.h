@@ -31,6 +31,8 @@ typedef enum {
     REQ_ERROR,
     REQ_CANCEL_MATCH,
     REQ_START_GAME,
+    REQ_GAME_ANSWER,
+    REQ_GAME_OPPONENT_ANSWER
 }RequestCodes;
 
 class Requests {
@@ -56,6 +58,7 @@ class Requests {
   Protocol _in_packet;
   Protocol _out_packet;
   
+  int _uid;
   int socket;
   RequestCodes req_code;
   
@@ -75,8 +78,10 @@ class Requests {
   
   // game
   int create_game(Rivals rivals);
-  int get_opponent_socket(int op_uid);
+  int get_socket(int op_uid);
+  int get_uid(int socket);
   int get_game_id(int uid);
+  
   
   bool check_request_code();
   bool check_length();

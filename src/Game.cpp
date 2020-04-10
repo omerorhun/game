@@ -7,6 +7,7 @@
 using namespace std;
 
 Game::Game(int game_id, Rivals rivals) {
+    _start_dt = 0;
     _game_uid = game_id;
     _rivals.user1 = rivals.user1;
     _rivals.user2 = rivals.user2;
@@ -38,12 +39,16 @@ bool Game::is_ready() {
     return false;
 }
 
+time_t Game::get_start_dt() {
+    return _start_dt;
+}
+
 void Game::start_game(int uid) {
     if (uid == _rivals.user1.uid) {
         
         // get questions from db
         _questions = Questions::get_instance()->get_question(5);
-        
+        _start_dt = time(0);
         _state = GAME_QUESTIONS_READY;
     }
 }

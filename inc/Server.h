@@ -39,8 +39,10 @@ class Server {
     int add_client_to_waiting_list(int uid);
     int login(ClientConnectionInfo client_conn);
     int logout(int uid);
-    ClientConnectionInfo *lookup(int uid);
+    ClientConnectionInfo *lookup_by_uid(int uid);
+    ClientConnectionInfo *lookup_by_socket(int socket);
     int get_socket(int uid);
+    int get_uid(int socket);
     
     static Server *get_instance();
     
