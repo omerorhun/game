@@ -197,7 +197,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     }
     else if (req_code == REQ_MATCH) {
         if (indata.size() != 0) {
-            mlog.log_debug("size: %d", (int)indata.size());
+            mlog.log_error("size: %d", (int)indata.size());
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
         }
@@ -216,7 +216,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         ret = is_matched(&user, start_dt, true);
         if (ret != ERR_SUCCESS) {
             // match failed. send error message
-            mlog.log_debug("match has timed out");
+            mlog.log_error("match has timed out");
             goto L_ERROR;
         }
         
@@ -261,7 +261,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     }
     else if (req_code == REQ_CANCEL_MATCH) {
         if (indata.size() != 0) {
-            mlog.log_debug("size: %d", (int)indata.size());
+            mlog.log_error("size: %d", (int)indata.size());
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
         }
@@ -288,7 +288,13 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         
         // TODO: add timeout!
         // wait for opponents answer
-        while(!game->is_ready());
+        time_t start_dt = time(NULL);
+        ErrorCodes ret = game->is_ready(start_dt, true);
+        if (ret != ERR_SUCCESS) {
+            // match failed. send error message
+            mlog.log_error("game start has timed out [error code: %d]", ret);
+            goto L_ERROR;
+        }
         
         // start game
         game->start_game(uid);
@@ -302,6 +308,32 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         // send questions
         add_data(data_json.dump());
     }
+    else if (req_code == REQ_GAME_ANSWER) {
+        // TODO: check if game exists
+        Game *game = GameService::get_instance()->lookup(uid);
+        if (game == NULL) {
+            ret = ERR_GAME_NOT_FOUND;
+            goto L_ERROR;
+        }
+        
+        // check data and get answer
+        string answer;
+        ErrorCodes ret = get_game_answer(indata, answer);
+        if (ret != ERR_SUCCESS) {
+            // wrong packet
+            goto L_ERROR;
+        }
+        
+        GameUser op = game->get_opponent(uid);
+        // add game answer request to the queue for the opponent user
+        mlog.log_debug("op.socket: %d", op.socket);
+        send_notification(op.socket, REQ_GAME_ANSWER, answer);
+        
+        // send ack to this user
+        set_request_code(REQ_GAME_ANSWER);
+        uint8_t outdata = ACK;
+        add_data(&outdata, 1);
+    }
     else {
         // unknown request received
         ret = ERR_REQ_WRONG_REQ_CODE;
@@ -312,6 +344,32 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     
     L_ERROR:
     return ret;
+}
+
+void Requests::send_notification(int socket, RequestCodes req_code, string data) {
+    Protocol packet;
+    packet.set_header(REQUEST_HEADER);
+    packet.set_request_code(req_code);
+    packet.add_data(data);
+    packet.set_crc();
+    packet.send_packet(socket);
+}
+
+ErrorCodes Requests::get_game_answer(string data, string &answer) {
+    nlohmann::json answer_json;
+    if (!nlohmann::json::accept(data)) {
+        return ERR_GAME_WRONG_PACKET;
+    }
+    
+    answer_json = nlohmann::json::parse(data);
+    if (answer_json.find("answer") == answer_json.end()) {
+        return ERR_GAME_WRONG_PACKET;
+    }
+    
+    // TODO: not need to copy. can be used the 'data' object
+    answer = data;
+    
+    return ERR_SUCCESS;
 }
 
 void Requests::prepare_error_packet(ErrorCodes err) {

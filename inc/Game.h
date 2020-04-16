@@ -2,6 +2,9 @@
 #define _GAME_H_
 
 #include <time.h>
+#include "errors.h"
+
+#define GAME_START_TIMEOUT 20
 
 typedef enum {
     GAME_WAITING_FOR_ACCEPTIONS,
@@ -28,10 +31,11 @@ class Game {
     int get_game_id();
     Rivals get_rivals();
     void accept_game(int uid);
-    bool is_ready();
+    ErrorCodes is_ready(time_t start, bool is_blocking);
     void start_game(int uid);
     std::string get_questions();
     time_t get_start_dt();
+    GameUser get_opponent(int uid);
     
     private:
     int _game_uid;

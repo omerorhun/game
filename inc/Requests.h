@@ -16,7 +16,7 @@
 
 #define GET_ONLINE_USERS_LEN 0
 
-#define MATCH_TIMEOUT 15
+#define MATCH_TIMEOUT 20
 
 const std::string jwt_key = "bjk1903";
 
@@ -81,7 +81,8 @@ class Requests {
   int get_socket(int op_uid);
   int get_uid(int socket);
   int get_game_id(int uid);
-  
+  ErrorCodes get_game_answer(std::string data, std::string &answer);
+  void send_notification(int socket, RequestCodes req_code, std::string data);
   
   bool check_request_code();
   bool check_length();

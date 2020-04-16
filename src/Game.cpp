@@ -22,6 +22,15 @@ Rivals Game::get_rivals() {
     return _rivals;
 }
 
+GameUser Game::get_opponent(int uid) {
+    if (_rivals.user1.uid == uid) {
+        return _rivals.user2;
+    }
+    else {
+        return _rivals.user1;
+    }
+}
+
 void Game::accept_game(int uid) {
     if (_rivals.user1.uid == uid) 
         _rivals.user1.accept = true;
@@ -32,11 +41,22 @@ void Game::accept_game(int uid) {
         _state = GAME_RIVALS_READY;
 }
 
-bool Game::is_ready() {
-    if (_state == GAME_RIVALS_READY)
-        return true;
+ErrorCodes Game::is_ready(time_t start, bool is_blocking) {
+    if (!is_blocking) {
+        if (_state == GAME_RIVALS_READY)
+            return ERR_SUCCESS;
+        
+        return ERR_GAME_START_FAIL;
+    }
     
-    return false;
+    while(_state != GAME_RIVALS_READY) {
+        // wait
+        if (time(NULL) > (start + GAME_START_TIMEOUT)) {
+            return ERR_GAME_START_TIMEOUT;
+        }
+    }
+    
+    return ERR_SUCCESS;
 }
 
 time_t Game::get_start_dt() {
