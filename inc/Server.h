@@ -55,7 +55,10 @@ class Server {
     std::vector<int> get_online_clients();
     bool is_client_online(int id);
     
-    void print_client_status(sockaddr_in client);
+    static void print_client_status(sockaddr_in client);
+    
+    // for debug
+    static struct ev_loop *get_loop();
     
     private:
     int _port;
@@ -78,7 +81,7 @@ class Server {
     static struct ev_loop *_ploop;
     static void add_new_connection(struct ev_loop *loop, ev_io *watcher, int revents);
     static void handle_client_cb(struct ev_loop *loop, ev_io *watcher, int revents);
-    void handle_client(ev_io **watcher);
+    void handle_client(ev_io *watcher);
 #else
     ev::io _waccept;
     void add_new_connection(ev::io &watcher, int revents);

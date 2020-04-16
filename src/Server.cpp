@@ -149,6 +149,8 @@ void Server::add_new_connection(struct ev_loop *loop, struct ev_io *watcher, int
         return;
     }
     
+    print_client_status(client_addr);
+    
     // add event listener for this client
     ev_io *w_client = (ev_io *)malloc(sizeof(ev_io)); // TEST: release this
     w_client->fd = client_socket;
@@ -163,29 +165,26 @@ void Server::handle_client_cb(struct ev_loop *loop, struct ev_io *watcher, int r
     // TEST: when client disconnects, receiving a lot of zero byte messages. must not be created new thread that situation.
     
     if (*((bool *)watcher->data) == true){
+        mlog.log_debug("create thread");
         *(bool *)watcher->data = false; // busy, ignore new requests
-        thread *th = new thread(&Server::handle_client, Server::get_instance(), &watcher);
+        thread *th = new thread(&Server::handle_client, Server::get_instance(), watcher);
         // TODO: release thread
     }
 }
 
-void free_watcher(ev_io **watcher) {
+void free_watcher(ev_io *watcher) {
     mlog.log_debug("free watcher");
-    if ((*watcher)->data != NULL) {
-        mlog.log_debug("w1");
-        free((*watcher)->data);
-        (*watcher)->data = NULL;
-    }
     
-    if (*watcher != NULL) {
-        mlog.log_debug("w2");
-        free(*watcher);
-        *watcher = NULL;
-    }
+    mlog.log_debug("w1");
+    free((watcher)->data);
+    
+    mlog.log_debug("w2");
+    free(watcher);
 }
+thread *tmr_thr;
 
-void Server::handle_client(ev_io **w) {
-    ev_io *watcher = *w;
+void Server::handle_client(ev_io *w) {
+    ev_io *watcher = w;
     int sock = watcher->fd;
     Requests request(sock);
     
@@ -197,10 +196,7 @@ void Server::handle_client(ev_io **w) {
         // stop watcher
         ev_io_stop(_ploop, watcher);
         
-        free_watcher(w);
-        
-        //free(watcher->data); // TEST: may cause segmentaion fault? (no this is safe)
-        //free(watcher); // TEST: may cause segmentaion fault? (no this is safe)
+        free_watcher(watcher);
         
         // Close socket
         close(sock);
@@ -209,8 +205,6 @@ void Server::handle_client(ev_io **w) {
         *(bool *)watcher->data = true; // available for new requests
     }
 }
-
-
 
 int Server::wait_clients() {
     int result = -1;
@@ -400,4 +394,9 @@ void Server::print_client_status(sockaddr_in client) {
     }
     
     return;
+}
+
+// for debug
+struct ev_loop *Server::get_loop() {
+    return _ploop;
 }

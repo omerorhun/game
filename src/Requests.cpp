@@ -170,7 +170,6 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         // TODO: test this request
         if (indata.size() != 0) {
             mlog.log_debug("size: %d", (int)indata.size());
-            mlog.log_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
         }
@@ -199,7 +198,6 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     else if (req_code == REQ_MATCH) {
         if (indata.size() != 0) {
             mlog.log_debug("size: %d", (int)indata.size());
-            mlog.log_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
         }
@@ -264,7 +262,6 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     else if (req_code == REQ_CANCEL_MATCH) {
         if (indata.size() != 0) {
             mlog.log_debug("size: %d", (int)indata.size());
-            mlog.log_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
         }
@@ -289,6 +286,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         // set acception for this client
         game->accept_game(uid);
         
+        // TODO: add timeout!
         // wait for opponents answer
         while(!game->is_ready());
         
@@ -366,6 +364,9 @@ void Requests::login(ClientConnectionInfo client_conn) {
 }
 
 void Requests::logout(int client_id) {
+    // if match request belongs to user exists..
+    cancel_match(client_id);
+    
     //logout
     Server::get_instance()->logout(client_id);
 }

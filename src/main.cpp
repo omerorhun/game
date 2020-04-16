@@ -19,6 +19,9 @@
 #include "debug.h"
 #include "version.h"
 
+// for debug
+void *debugthread(void *arg);
+
 using namespace std;
 
 Dlogger mlog;
@@ -29,7 +32,6 @@ bool get_args(int argc, char **argv, uint16_t *port);
 
 int main (int argc, char **argv) {
     uint16_t port;
-    
     mlog.log_info("Version: %s", VERSION_FILEVERSION_STR);
     
     get_args(argc, argv, &port);
@@ -54,6 +56,14 @@ int main (int argc, char **argv) {
 #endif
     
     return 0;
+}
+
+// a function for deadlock check
+void *debugthread(void *arg) {
+    while (1) {
+        mlog.log_debug("debug thread");
+        for (uint32_t i = 0; i < 0x6fffffff; i++);
+    }
 }
 
 bool get_args(int argc, char **argv, uint16_t *port) {

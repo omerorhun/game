@@ -164,7 +164,6 @@ uint8_t *Protocol::get_buffer() {
 
 bool Protocol::check_token(string key, int *p_uid) {
     string indata((char *)&_buffer[PKT_TOKEN]);
-    mlog.log_hex((const char *)"constrctr token", (char *)indata.c_str(), indata.size());
     Jwt tkn(indata, key);
     
     if (!tkn.verify())
