@@ -3,6 +3,7 @@
 #include "Questions.h"
 #include "utilities.h"
 #include "json.hpp"
+#include "debug.h"
 
 using namespace std;
 
@@ -25,7 +26,7 @@ string Questions::get_question(int count) {
     
     string buffer = read_file(QUESTIONS_SOURCE_FILE);
     
-    printf("buffer file: %s\n", buffer.c_str());
+    mlog.log_debug("buffer file: %s", buffer.c_str());
     
     if (nlohmann::json::accept(buffer) == false)
         return string("");

@@ -7,6 +7,7 @@
 #include <mutex>
 
 #include "utilities.h"
+#include "debug.h"
 
 using namespace std;
 
@@ -121,7 +122,7 @@ string read_file(const char *file_name) {
         input_stream.close();
     }
     else {
-        printf("File couldn't opened\n");
+        mlog.log_error("File couldn't opened");
     }
     
     return buffer.str();

@@ -22,7 +22,6 @@
 #define GET_REQUEST_CODE(p) p[3]
 
 uint16_t gen_crc16(const uint8_t *data, uint16_t size);
-void print_hex(char *header, char *buffer, uint16_t len);
 
 struct ProtocolCrcException : public std::exception {
 	const char * what () const throw () {

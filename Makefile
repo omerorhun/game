@@ -6,6 +6,7 @@ LIBS= -lpthread -pthread -lcurl -lev -lcrypto -lssl
 OBJS= ./obj/main.o ./obj/Server.o ./obj/Users.o ./obj/utilities.o
 OBJS+= ./obj/Protocol.o ./obj/Requests.o ./obj/Jwt.o ./obj/base64.o
 OBJS+= ./obj/Matcher.o ./obj/Game.o ./obj/GameService.o ./obj/Questions.o
+OBJS+= ./obj/debug.o
 
 all: server
 
@@ -15,11 +16,11 @@ image:
 	@echo "linking $@"
 	@$(CXX) $(CFLAGS) $(OBJS) $(LIBS) -o server
 
-build: main Users Server Jwt base64 Protocol Requests utilities Matcher Game GameService Questions
+build: main Users Server Jwt base64 Protocol Requests utilities Matcher Game GameService Questions debug
 
 main: ./src/main.cpp ./inc/Server.h ./inc/Users.h
 	@echo "compiling $@"
-	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/main.cpp -o ./obj/main.o
+	@$(CXX) $(CFLAGS) -c -g -I"./inc" -I"./version" ./src/main.cpp -o ./obj/main.o
 	
 Users: ./src/Users.cpp ./inc/Users.h ./inc/json.hpp
 	@echo "compiling $@"
@@ -65,8 +66,16 @@ Questions: ./src/Questions.cpp ./inc/Questions.h
 	@echo "compiling $@"
 	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Questions.cpp -o ./obj/Questions.o
 
+debug: ./src/debug.cpp ./inc/debug.h
+	@echo "compiling $@"
+	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/debug.cpp -o ./obj/debug.o
+
+incver:
+	@./version/incver.sh
+
 clean:
-	rm -rf ./obj/*.o server
+	@echo "Cleaning project..."
+	@rm -rf ./obj/*.o server
 
 rebuild_all: clean build
 	

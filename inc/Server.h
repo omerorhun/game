@@ -31,6 +31,8 @@ class Server {
     Server(ev::dynamic_loop &loop);
 #else
     Server();
+    Server(int port);
+    
     int wait_clients();
 #endif // CPP_STYLE_LIBEV
     int init_server();
@@ -56,6 +58,7 @@ class Server {
     void print_client_status(sockaddr_in client);
     
     private:
+    int _port;
     int _main_socket;
     static Server *p_instance;
     void add_messagebox(int id);

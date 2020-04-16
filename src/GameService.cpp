@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "GameService.h"
+#include "debug.h"
 
 using namespace std;
 
@@ -24,9 +25,9 @@ GameService *GameService::get_instance() {
 }
 
 int GameService::create_game(Rivals rivals) {
-    printf("create game\n");
+    mlog.log_info("create game");
     
-    printf("%d - %d\n", rivals.user1.uid, rivals.user2.uid);
+    mlog.log_debug("%d - %d", rivals.user1.uid, rivals.user2.uid);
     int game_id = 0;
     
     // if not create new game
@@ -62,6 +63,6 @@ int GameService::get_game_id(int user_id) {
     if (game == NULL)
         return 0;
     
-    printf("game found\n");
+    mlog.log_debug("game found");
     return game->get_game_id();
 }

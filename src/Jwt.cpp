@@ -6,6 +6,7 @@
 
 #include "Jwt.h"
 #include "utilities.h"
+#include "debug.h"
 
 using namespace std;
 
@@ -134,7 +135,7 @@ bool Jwt::is_expired() {
     time_t now; // TODO: get time in UTC
     time(&now);
     
-    printf("%d minutes to expire\n", (int)(TOKEN_LIFETIME_SEC - (now - expire))/60);
+    mlog.log_debug("%d minutes to expire", (int)(TOKEN_LIFETIME_SEC - (now - expire))/60);
     
     if ((now - expire) < TOKEN_LIFETIME_SEC)
         return false;

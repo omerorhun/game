@@ -8,6 +8,7 @@
 #include "json.hpp"
 #include <fstream>
 #include <sstream>
+#include "debug.h"
 
 //name%2Cpicture%2Ccover%2Cage_range%2Cdevices%2Cemail%2Cgender%2Cis_verified
 #define FACEBOOK_GRAPH_REQ_FIELDS "name,picture,email,gender,is_verified"
@@ -32,13 +33,13 @@ Users *Users::get_instance() {
 ErrorCodes Users::register_user(int *client_id, string access_token) {
     ErrorCodes err;
     // get user data from facebook
-    printf("waiting response from facebook...\n");
+    mlog.log_debug("waiting response from facebook...");
     nlohmann::json user_data = get_user_data_from_facebook(access_token);
-    printf("response: %s\n", user_data.dump().c_str());
+    mlog.log_debug("response: %s", user_data.dump().c_str());
     
     err = check_errors(user_data);
     if (err != ERR_SUCCESS) {
-        printf("Error code: %d\n", err);
+        mlog.log_error("Error code: %d", err);
         return err;
     }
     
@@ -73,7 +74,7 @@ ErrorCodes Users::register_user(int *client_id, string access_token) {
          all_users_json = nlohmann::json::parse(buffer.str());
     }
     catch(nlohmann::json::parse_error e) {
-        printf("parse error\n");
+        mlog.log_error("parse error");
     }
     
     // lookup for the user
@@ -83,7 +84,7 @@ ErrorCodes Users::register_user(int *client_id, string access_token) {
         nlohmann::json new_user;
         
         // TODO: Determine client's id
-        user_info.id = all_users_json.size() + 10000000;
+        user_info.id = all_users_json["users"].size() + 10000000;
         
         new_user["id"] = user_info.id;
         new_user["fb_id"] = user_info.fb_id;
@@ -95,7 +96,7 @@ ErrorCodes Users::register_user(int *client_id, string access_token) {
         output << all_users_json.dump();
         output.close();
         
-        printf("%s registered [%d]\n", user_info.username.c_str(), user_info.id);
+        mlog.log_debug("%s registered [%d]", user_info.username.c_str(), user_info.id);
     }
     else {
         // else login
@@ -104,7 +105,7 @@ ErrorCodes Users::register_user(int *client_id, string access_token) {
         
         user_info.id = user["id"];
         string url = user["url"];
-        printf("%s logged in [%d]\n", user_info.username.c_str(), user_info.id);
+        mlog.log_debug("%s logged in [%d]", user_info.username.c_str(), user_info.id);
     }
     
     *client_id = user_info.id;

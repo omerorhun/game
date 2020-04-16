@@ -12,6 +12,7 @@
 #include "Protocol.h"
 #include "Jwt.h"
 #include "utilities.h"
+#include "debug.h"
 
 using namespace std;
 
@@ -64,7 +65,7 @@ bool Protocol::receive_packet(int sock) {
     _length = _data_length + 5; // 1(header) + 2(length) + 2(crc)
     
     const char header[] = "rx packet";
-    print_hex(header, (char *)_buffer, _length);
+    mlog.log_hex(header, (char *)_buffer, _length);
     
     return true;
 }
@@ -111,7 +112,7 @@ void Protocol::send_packet(int sock) {
         return;
     
     const char header[] = "tx packet";
-    print_hex(header, (char *)_buffer, _length);
+    mlog.log_hex(header, (char *)_buffer, _length);
     send(sock, _buffer, _length, 0);
 }
 
@@ -163,7 +164,7 @@ uint8_t *Protocol::get_buffer() {
 
 bool Protocol::check_token(string key, int *p_uid) {
     string indata((char *)&_buffer[PKT_TOKEN]);
-    print_hex((const char *)"constrctr token", (char *)indata.c_str(), indata.size());
+    mlog.log_hex((const char *)"constrctr token", (char *)indata.c_str(), indata.size());
     Jwt tkn(indata, key);
     
     if (!tkn.verify())

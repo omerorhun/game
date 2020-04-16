@@ -8,6 +8,7 @@
 #include "Protocol.h"
 #include "utilities.h"
 #include "Matcher.h"
+#include "debug.h"
 
 // socket
 #include <sys/types.h>
@@ -37,7 +38,7 @@ ErrorCodes Requests::get_request() {
     int uid;
     
     if (!_in_packet.receive_packet(socket)) {
-        printf("ERROR RECEIVE PACKET\n");
+        mlog.log_error("ERROR RECEIVE PACKET");
         err = ERR_CONNECTION;
         _in_packet.free_buffer();
         set_header(REQUEST_HEADER);
@@ -47,7 +48,7 @@ ErrorCodes Requests::get_request() {
     // check request
     err = check_request(&uid);
     if (err != ERR_SUCCESS) {
-        printf("ERROR CODE: %d\n", err);
+        mlog.log_error("ERROR CODE: %d", err);
         _in_packet.free_buffer();
         set_header(REQUEST_HEADER);
         return err;
@@ -63,7 +64,7 @@ ErrorCodes Requests::get_request() {
     
     err = interpret_request(uid, req_code, indata);
     if (err != ERR_SUCCESS) {
-        printf("ERROR INTERPRET: %d\n", err);
+        mlog.log_error("ERROR INTERPRET: %d", err);
         return err;
     }
     
@@ -73,7 +74,7 @@ ErrorCodes Requests::get_request() {
 ErrorCodes Requests::handle_request() {
     ErrorCodes ret = get_request();
     if (ret == ERR_CONNECTION) {
-        printf("Client disconnected\n");
+        mlog.log_error("Client disconnected");
         logout(get_uid(socket));
         
         // TODO: if matched, send notification to opponent. maybe with event
@@ -115,7 +116,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     Users *users = Users::get_instance();
     ErrorCodes ret = ERR_SUCCESS;
     
-    printf("Request code: %d\n", req_code);
+    mlog.log_debug("Request code: %d", req_code);
     
     set_header(REQUEST_HEADER);
     if (req_code == REQ_FB_LOGIN) {
@@ -134,7 +135,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         // TODO: Add all facebook errors
         switch (ret) {
             case ERR_SUCCESS:
-                printf("fb success\n");
+                mlog.log_debug("fb success");
                 set_request_code(REQ_FB_LOGIN);
                 set_token(uid);
                 ClientConnectionInfo user_conn;
@@ -145,11 +146,11 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
                 break;
             case ERR_FB_UNKNOWN:
             case ERR_FB_INVALID_ACCESS_TOKEN:
-                printf("fb error\n");
+                mlog.log_debug("fb error");
                 goto L_ERROR;
                 break;
             default:
-                printf("fb default\n");
+                mlog.log_debug("fb default");
                 break;
         }
     }
@@ -168,8 +169,8 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     else if (req_code == REQ_GET_ONLINE_USERS) {
         // TODO: test this request
         if (indata.size() != 0) {
-            printf("size: %d\n", (int)indata.size());
-            print_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
+            mlog.log_debug("size: %d", (int)indata.size());
+            mlog.log_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
         }
@@ -197,13 +198,13 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     }
     else if (req_code == REQ_MATCH) {
         if (indata.size() != 0) {
-            printf("size: %d\n", (int)indata.size());
-            print_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
+            mlog.log_debug("size: %d", (int)indata.size());
+            mlog.log_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
         }
         UserMatchInfo user;
-        printf("match request from : %d\n", uid);
+        mlog.log_debug("match request from : %d", uid);
         // find opponent
         // 1- add client's uid to the 'waiting matches list'
         //  Note: matcher will find an opponent from waiting list and throws an event
@@ -212,12 +213,12 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         add_to_match_queue(&user);
         
         // 2- wait for match with timeout
-        printf("waiting match for %d...\n", uid);
+        mlog.log_debug("waiting match for %d...", uid);
         time_t start_dt = time(0);
         ret = is_matched(&user, start_dt, true);
         if (ret != ERR_SUCCESS) {
             // match failed. send error message
-            printf("match has timed out\n");
+            mlog.log_debug("match has timed out");
             goto L_ERROR;
         }
         
@@ -240,7 +241,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         }
         
         // match success
-        printf("%d matched with %d\n", user.uid, user.op_uid);
+        mlog.log_debug("%d matched with %d", user.uid, user.op_uid);
         set_request_code(REQ_MATCH);
         
         // 3- get opponent info :
@@ -262,8 +263,8 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     }
     else if (req_code == REQ_CANCEL_MATCH) {
         if (indata.size() != 0) {
-            printf("size: %d\n", (int)indata.size());
-            print_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
+            mlog.log_debug("size: %d", (int)indata.size());
+            mlog.log_hex((const char *)"indata:", (char *)indata.c_str(), indata.size());
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
         }
@@ -279,6 +280,12 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         // get game id from indata
         
         Game *game = GameService::get_instance()->lookup(uid);
+        
+        if (game == NULL) {
+            ret = ERR_GAME_NOT_MATCHED;
+            goto L_ERROR;
+        }
+        
         // set acception for this client
         game->accept_game(uid);
         

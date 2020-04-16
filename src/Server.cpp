@@ -13,6 +13,7 @@
 
 #include "Server.h"
 #include "Requests.h"
+#include "debug.h"
 
 // for libev
 #if !CPP_STYLE_LIBEV
@@ -31,22 +32,36 @@ Server::Server(ev::dynamic_loop &loop) {
 }
 #else
 Server::Server() {
-    if (p_instance == NULL)
+    if (p_instance == NULL) {
         p_instance = this;
-    
-    // init loop
-    _ploop = ev_default_loop(0);
+        
+        // init loop
+        _ploop = ev_default_loop(0);
+        _port = SERVER_PORT;
+    }
 }
+
+Server::Server(int port) {
+    if (p_instance == NULL) {
+        p_instance = this;
+        
+        // init loop
+        _ploop = ev_default_loop(0);
+        
+        _port = port;
+    }
+}
+
 #endif // CPP_STYLE_LIBEV
 
 int Server::init_server() {
     int result = 0;
     
-    printf("init server\n");
+    mlog.log_debug("init server");
     
     // open a socket
     if ((_main_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        printf("Can't create a socket!\n");
+        mlog.log_error("Can't create a socket!");
         return -1;
     }
     
@@ -54,16 +69,16 @@ int Server::init_server() {
     sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     inet_pton(AF_INET, "0.0.0.0", &server_addr.sin_addr);
-    server_addr.sin_port = htons(SERVER_PORT);
+    server_addr.sin_port = htons(_port);
     
     if (bind(_main_socket, (const sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
-        printf("Can't bind to IP/port\n");
+        mlog.log_error("Can't bind to IP/port");
         return -1;
     }
     
     // listen the socket
     if (listen(_main_socket, SOMAXCONN) == -1) {
-        printf("Can't listen!\n");
+        mlog.log_error("Can't listen!");
         return -1;
     }
     
@@ -76,9 +91,8 @@ int Server::init_server() {
     _waccept.set(_main_socket, ev::READ);
     _waccept.start();
 #endif // !CPP_STYLE_LIBEV
-
-
-    printf("init server end\n");
+    
+    mlog.log_info("init server end");
     return result;
 }
 
@@ -91,15 +105,15 @@ void Server::add_new_connection(ev::io &watcher, int revents) {
     
     if ((client_socket = accept(watcher.fd, (sockaddr *)&client_addr, &client_len)) == -1) {
         // acception error
-        printf("Error on accept\n");
+        mlog.log_error("Error on accept");
         close(client_socket);
         return;
     }
     
-    printf("%s %d\n", __func__, client_socket);
+    mlog.log_debug("%s %d", __func__, client_socket);
     
     ev::io *w_client = (ev::io *)malloc(sizeof(ev::io));
-    printf("_waccept.loop: %p\n", &_waccept.loop);
+    mlog.log_debug("_waccept.loop: %p", &_waccept.loop);
     w_client->set(_waccept.loop);
     w_client->set<Server, &Server::handle_client>(this);
     w_client->set(client_socket, ev::READ);
@@ -109,7 +123,7 @@ void Server::add_new_connection(ev::io &watcher, int revents) {
 void Server::handle_client(ev::io &watcher, int revents) {
     Requests request(watcher.fd);
     
-    printf("handle_client: %d\n", watcher.fd);
+    mlog.log_debug("handle_client: %d", watcher.fd);
     
     ErrorCodes err = request.handle_request();
     if (err == ERR_REQ_DISCONNECTED) {
@@ -130,7 +144,7 @@ void Server::add_new_connection(struct ev_loop *loop, struct ev_io *watcher, int
     
     if ((client_socket = accept(watcher->fd, (sockaddr *)&client_addr, &client_len)) == -1) {
         // acception error
-        printf("Error on accept\n");
+        mlog.log_error("Error on accept");
         close(client_socket);
         return;
     }
@@ -156,15 +170,15 @@ void Server::handle_client_cb(struct ev_loop *loop, struct ev_io *watcher, int r
 }
 
 void free_watcher(ev_io **watcher) {
-    printf("free watcher\n");
+    mlog.log_debug("free watcher");
     if ((*watcher)->data != NULL) {
-        printf("w1\n");
+        mlog.log_debug("w1");
         free((*watcher)->data);
         (*watcher)->data = NULL;
     }
     
     if (*watcher != NULL) {
-        printf("w2\n");
+        mlog.log_debug("w2");
         free(*watcher);
         *watcher = NULL;
     }
@@ -175,7 +189,7 @@ void Server::handle_client(ev_io **w) {
     int sock = watcher->fd;
     Requests request(sock);
     
-    printf("handle_client: %d\n", sock);
+    mlog.log_info("handle_client: %d", sock);
     
     ErrorCodes err = request.handle_request();
     if (err == ERR_REQ_DISCONNECTED) {
@@ -201,7 +215,7 @@ void Server::handle_client(ev_io **w) {
 int Server::wait_clients() {
     int result = -1;
     
-    printf("Waiting for clients...\n");
+    mlog.log_info("Waiting for clients...");
     
     // check events
     ev_run(_ploop, 0);
@@ -220,14 +234,14 @@ void Server::add_messagebox(int sesion_id) {
     vector<string> subqueue;
     int size = message_queue.size();
     
-    printf("add messagebox for %d\n", sesion_id);
+    mlog.log_debug("add messagebox for %d", sesion_id);
     
     mtx.lock();
     message_queue.insert(pair<int,vector<string> >(sesion_id, vector<string>()));
     mtx.unlock();
     
     if (size == message_queue.size())
-        printf("error on adding user\n");
+        mlog.log_debug("error on adding user");
 }
 
 void Server::add_message_by_id(int sesion_id, string msg) {
@@ -264,13 +278,13 @@ int Server::check_for_messages(int session_id) {
         mtx.unlock();
         
         if (size > 0)
-            printf("%d messages for user%d\n", size, session_id);
+            mlog.log_debug("%d messages for user%d", size, session_id);
     }
     catch (const out_of_range& oor) {
-        printf("queue size: %d\n", (int)message_queue.size());
-        printf("id: %d\n", session_id);
-        printf("out of range %s\n", oor.what());
-        printf("-------------------------------------------------------------------\n");
+        mlog.log_debug("queue size: %d", (int)message_queue.size());
+        mlog.log_debug("id: %d", session_id);
+        mlog.log_debug("out of range %s", oor.what());
+        mlog.log_debug("-------------------------------------------------------------------");
     }
     
     return size;
@@ -299,7 +313,7 @@ int Server::login(ClientConnectionInfo client_conn) {
     
     // check if client logged in
     if (lookup_by_uid(client_conn.uid) != NULL) {
-        printf("already logged in\n");
+        mlog.log_debug("already logged in");
         return 0;
     }
     
@@ -378,11 +392,11 @@ void Server::print_client_status(sockaddr_in client) {
                                             host, NI_MAXHOST, svc, NI_MAXSERV, 0);
     
     if (result) {
-        printf("%s connected to %s\n", host, svc);
+        mlog.log_debug("%s connected to %s", host, svc);
     }
     else {
         inet_ntop(AF_INET, &client.sin_addr, host, NI_MAXHOST);
-        printf("%s connected to %hu\n", host, client.sin_port);
+        mlog.log_debug("%s connected to %hu", host, client.sin_port);
     }
     
     return;

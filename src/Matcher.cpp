@@ -6,6 +6,8 @@
 #include <thread>
 #include <unistd.h>
 
+#include "debug.h"
+
 using namespace std;
 
 Matcher *Matcher::_p_instance = NULL;
@@ -31,7 +33,7 @@ Matcher::Matcher() {
 void Matcher::find_match_cb(struct ev_loop *loop, ev_async *watcher, int revents) {
     int remaining = _waiting_matches.size();
     
-    printf("remaining: %d\n", remaining);
+    mlog.log_debug("remaining: %d", remaining);
     while (_waiting_matches.size() > 1) {
         g_mtx.lock();
         

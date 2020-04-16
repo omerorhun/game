@@ -20,7 +20,8 @@ typedef enum{
     ERR_USERS_FB,
     ERR_FB_INVALID_ACCESS_TOKEN,
     ERR_FB_UNKNOWN,
-    ERR_SRV_ACCEPT_CONN
+    ERR_SRV_ACCEPT_CONN,
+    ERR_GAME_NOT_MATCHED
 }ErrorCodes;
 
 typedef enum {
