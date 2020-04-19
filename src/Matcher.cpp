@@ -86,7 +86,7 @@ void Matcher::remove(UserMatchInfo *user) {
     g_mtx.unlock();
 }
 
-UserMatchInfo *Matcher::lookup(int uid) {
+UserMatchInfo *Matcher::lookup(uint64_t uid) {
     UserMatchInfo *ret = NULL;
     g_mtx.lock();
     for (int i = 0; i < _waiting_matches.size(); i++) {

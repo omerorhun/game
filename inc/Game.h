@@ -15,7 +15,7 @@ typedef enum {
 }GameState;
 
 typedef struct {
-    int uid;
+    uint64_t uid;
     int socket;
     bool accept;
 }GameUser;
@@ -30,12 +30,12 @@ class Game {
     Game(int game_id, Rivals rivals);
     int get_game_id();
     Rivals get_rivals();
-    void accept_game(int uid);
+    void accept_game(uint64_t uid);
     ErrorCodes is_ready(time_t start, bool is_blocking);
-    void start_game(int uid);
+    void start_game(uint64_t uid);
     std::string get_questions();
     time_t get_start_dt();
-    GameUser get_opponent(int uid);
+    GameUser get_opponent(uint64_t uid);
     
     private:
     int _game_uid;
@@ -43,7 +43,6 @@ class Game {
     Rivals _rivals;
     GameState _state;
     std::string _questions;
-    
 };
 
 #endif // _GAME_H_

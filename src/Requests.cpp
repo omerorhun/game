@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "Requests.h"
-#include "Users.h"
+#include "RegistryService.h"
 #include "Jwt.h"
 #include "Protocol.h"
 #include "utilities.h"
@@ -35,7 +35,7 @@ ErrorCodes Requests::get_request() {
     ErrorCodes err = ERR_SUCCESS;
     RequestCodes req_code;
     string indata;
-    int uid;
+    uint64_t uid;
     
     if (!_in_packet.receive_packet(socket)) {
         mlog.log_error("ERROR RECEIVE PACKET");
@@ -89,7 +89,7 @@ ErrorCodes Requests::handle_request() {
     return ERR_SUCCESS;
 }
 
-ErrorCodes Requests::check_request(int *p_uid) {
+ErrorCodes Requests::check_request(uint64_t *p_uid) {
     ErrorCodes ret = ERR_REQ_UNKNOWN;
     
     // check header
@@ -111,9 +111,9 @@ ErrorCodes Requests::check_request(int *p_uid) {
     return ERR_SUCCESS;
 }
 
-ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string indata) {
+ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, string indata) {
     Server *srv = Server::get_instance();
-    Users *users = Users::get_instance();
+    RegistryService *auth_service = RegistryService::get_instance();
     ErrorCodes ret = ERR_SUCCESS;
     
     mlog.log_debug("Request code: %d", req_code);
@@ -121,21 +121,18 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
     set_header(REQUEST_HEADER);
     if (req_code == REQ_FB_LOGIN) {
       // no length check. fb token size may vary
-#if 0
-        // TODO: check length(NOT FINISHED)
-        if (indata.size() = 0) {
-            ret = ERR_REQ_WRONG_LENGTH;
-            goto L_ERROR;
-        }
-#endif
-        // TODO: test this request
         string fb_token = indata;
         
-        ret = users->register_user(&uid, fb_token);
+        ret = auth_service->sign_in(&uid, fb_token);
+        // check if user logged in
+        if (srv->is_client_online(uid)) {
+            ret = ERR_LOGIN_ALREADY_LOGGED_IN;
+            goto L_ERROR;
+        }
+        
         // TODO: Add all facebook errors
         switch (ret) {
             case ERR_SUCCESS:
-                mlog.log_debug("fb success");
                 set_request_code(REQ_FB_LOGIN);
                 set_token(uid);
                 ClientConnectionInfo user_conn;
@@ -146,11 +143,12 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
                 break;
             case ERR_FB_UNKNOWN:
             case ERR_FB_INVALID_ACCESS_TOKEN:
-                mlog.log_debug("fb error");
+                mlog.log_error("fb error");
                 goto L_ERROR;
                 break;
             default:
-                mlog.log_debug("fb default");
+                mlog.log_error("fb default");
+                goto L_ERROR;
                 break;
         }
     }
@@ -177,7 +175,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         set_request_code(REQ_GET_ONLINE_USERS);
         
         // get online users
-        vector<int> onl_cli = srv->get_online_clients();
+        vector<uint64_t> onl_cli = srv->get_online_clients();
         
         // add count
         uint8_t buffer[2] = {B0(onl_cli.size()), B1(onl_cli.size())};
@@ -185,11 +183,12 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         
         // add client ids
         for (uint16_t i = 0; i < onl_cli.size(); i++) {
-            uint8_t buffer[4] = {   
+            uint8_t buffer[8] = {   
                                     B0(onl_cli[i]),
                                     B1(onl_cli[i]),
                                     B2(onl_cli[i]),
-                                    B3(onl_cli[i])
+                                    B3(onl_cli[i]),
+                                    // TODO: convert here to 64 bit version
                                 };
             
             add_data(buffer, 4);
@@ -202,7 +201,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
             goto L_ERROR;
         }
         UserMatchInfo user;
-        mlog.log_debug("match request from : %d", uid);
+        mlog.log_debug("match request from : %lu", uid);
         // find opponent
         // 1- add client's uid to the 'waiting matches list'
         //  Note: matcher will find an opponent from waiting list and throws an event
@@ -211,7 +210,7 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         add_to_match_queue(&user);
         
         // 2- wait for match with timeout
-        mlog.log_debug("waiting match for %d...", uid);
+        mlog.log_debug("waiting match for %lu...", uid);
         time_t start_dt = time(0);
         ret = is_matched(&user, start_dt, true);
         if (ret != ERR_SUCCESS) {
@@ -239,14 +238,22 @@ ErrorCodes Requests::interpret_request(int uid, RequestCodes req_code, string in
         }
         
         // match success
-        mlog.log_debug("%d matched with %d", user.uid, user.op_uid);
+        mlog.log_debug("%lu matched with %lu", user.uid, user.op_uid);
         set_request_code(REQ_MATCH);
-        
+        mlog.log_debug("debug");
         // 3- get opponent info :
-        nlohmann::json op = users->get_user_data(user.op_uid);
-        op["game_id"] = game_id;
+        RegistryInfo op = auth_service->get_user_data(user.op_uid);
+        mlog.log_debug("debug");
+        nlohmann::json op_json;
+        op_json["id"] = op.uid;
+        op_json["fb_id"] = op.fb_id;
+        op_json["name"] = op.name;
+        op_json["url"] = op.picture_url;
+        op_json["game_id"] = game_id;
+        mlog.log_debug("debug");
         // 4- prepare package for transmitting to the client
-        add_data(op.dump());
+        add_data(op_json.dump());
+        mlog.log_debug("debug");
 #if 0
         uint8_t buffer[4] = {
             B0(user.op_uid),
@@ -400,9 +407,9 @@ bool Requests::set_ack(uint8_t ack) {
 }
 #endif
 
-bool Requests::set_token(int id) {
+bool Requests::set_token(uint64_t uid) {
     time_t start_dt = time(NULL); // get current dt
-    Jwt token(id, start_dt, jwt_key);
+    Jwt token(uid, start_dt, jwt_key);
     
     return _out_packet.add_data(token.get_token());
 }
@@ -421,12 +428,16 @@ void Requests::login(ClientConnectionInfo client_conn) {
     Server::get_instance()->login(client_conn);
 }
 
-void Requests::logout(int client_id) {
+void Requests::logout(uint64_t uid) {
     // if match request belongs to user exists..
-    cancel_match(client_id);
+    cancel_match(uid);
+    
+    // remove game if exists
+    // TODO: user must be resign. do not remove game, resign user.
+    //GameService::get_instance()->finish_game(uid);
     
     //logout
-    Server::get_instance()->logout(client_id);
+    Server::get_instance()->logout(uid);
 }
 
 void Requests::add_to_match_queue(UserMatchInfo *user) {
@@ -437,7 +448,7 @@ void Requests::remove_from_match_queue(UserMatchInfo *user) {
     Matcher::get_instance()->remove(user);
 }
 
-void Requests::cancel_match(int uid) {
+void Requests::cancel_match(uint64_t uid) {
     UserMatchInfo *user = Matcher::get_instance()->lookup(uid);
     if (user != NULL)
         Matcher::get_instance()->remove(user);
@@ -466,14 +477,14 @@ int Requests::create_game(Rivals rivals) {
     return GameService::get_instance()->create_game(rivals);
 }
 
-int Requests::get_socket(int op_uid) {
+int Requests::get_socket(uint64_t op_uid) {
     return Server::get_instance()->get_socket(op_uid);
 }
 
-int Requests::get_uid(int socket) {
+uint64_t Requests::get_uid(int socket) {
     return Server::get_instance()->get_uid(socket);
 }
 
-int Requests::get_game_id(int uid) {
+int Requests::get_game_id(uint64_t uid) {
     return GameService::get_instance()->get_game_id(uid);
 }

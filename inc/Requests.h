@@ -43,13 +43,13 @@ class Requests {
   
   ErrorCodes handle_request();
   ErrorCodes get_request();
-  ErrorCodes check_request(int *p_uid);
-  ErrorCodes interpret_request(int uid, RequestCodes req_code, std::string indata);
+  ErrorCodes check_request(uint64_t *p_uid);
+  ErrorCodes interpret_request(uint64_t uid, RequestCodes req_code, std::string indata);
   void prepare_error_packet(ErrorCodes err);
   void send_response();
   
   void login(ClientConnectionInfo client_conn);
-  void logout(int client_id);
+  void logout(uint64_t uid);
   
   // for libev
   struct ev_loop *_event_listener;
@@ -66,21 +66,21 @@ class Requests {
   bool set_header(uint8_t header);
   bool set_request_code(RequestCodes req_code);
   bool set_ack(uint8_t ack);
-  bool set_token(int id);
+  bool set_token(uint64_t uid);
   bool add_data(std::string data);
   bool add_data(uint8_t *data, uint16_t len);
   
   // match
   void add_to_match_queue(UserMatchInfo *user);
   void remove_from_match_queue(UserMatchInfo *user);
-  void cancel_match(int uid);
+  void cancel_match(uint64_t uid);
   ErrorCodes is_matched(UserMatchInfo *user, time_t start, bool is_blocking);
   
   // game
   int create_game(Rivals rivals);
-  int get_socket(int op_uid);
-  int get_uid(int socket);
-  int get_game_id(int uid);
+  int get_socket(uint64_t op_uid);
+  uint64_t get_uid(int socket);
+  int get_game_id(uint64_t uid);
   ErrorCodes get_game_answer(std::string data, std::string &answer);
   void send_notification(int socket, RequestCodes req_code, std::string data);
   

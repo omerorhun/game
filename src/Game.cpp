@@ -22,7 +22,7 @@ Rivals Game::get_rivals() {
     return _rivals;
 }
 
-GameUser Game::get_opponent(int uid) {
+GameUser Game::get_opponent(uint64_t uid) {
     if (_rivals.user1.uid == uid) {
         return _rivals.user2;
     }
@@ -31,7 +31,7 @@ GameUser Game::get_opponent(int uid) {
     }
 }
 
-void Game::accept_game(int uid) {
+void Game::accept_game(uint64_t uid) {
     if (_rivals.user1.uid == uid) 
         _rivals.user1.accept = true;
     else if (_rivals.user2.uid == uid)
@@ -63,7 +63,7 @@ time_t Game::get_start_dt() {
     return _start_dt;
 }
 
-void Game::start_game(int uid) {
+void Game::start_game(uint64_t uid) {
     if (uid == _rivals.user1.uid) {
         
         // get questions from db

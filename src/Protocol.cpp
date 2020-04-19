@@ -162,7 +162,7 @@ uint8_t *Protocol::get_buffer() {
     return _buffer;
 }
 
-bool Protocol::check_token(string key, int *p_uid) {
+bool Protocol::check_token(string key, uint64_t *p_uid) {
     string indata((char *)&_buffer[PKT_TOKEN]);
     Jwt tkn(indata, key);
     

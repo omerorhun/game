@@ -10,15 +10,16 @@
 #include "constants.h"
 
 typedef struct {
-    int uid;
-    int op_uid;
+    uint64_t uid;
+    uint64_t op_uid;
 }UserMatchInfo;
+
 class Matcher {
     public:
     Matcher();
     void add(UserMatchInfo *user);
     void remove(UserMatchInfo *user);
-    UserMatchInfo *lookup(int uid);
+    UserMatchInfo *lookup(uint64_t uid);
     void start_loop(struct ev_loop *loop);
 
     static Matcher *_p_instance;

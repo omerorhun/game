@@ -7,18 +7,18 @@
 
 using namespace std;
 
-Questions *Questions::_p_instance = NULL;
+Questions *Questions::_ps_instance = NULL;
 
 Questions::Questions() {
-    if (_p_instance == NULL)
-        _p_instance = this;
+    if (_ps_instance == NULL)
+        _ps_instance = this;
 }
 
 Questions *Questions::get_instance() {
-    if (_p_instance == NULL)
-        _p_instance = new Questions();
+    if (_ps_instance == NULL)
+        _ps_instance = new Questions();
     
-    return _p_instance;
+    return _ps_instance;
 }
 
 string Questions::get_question(int count) {

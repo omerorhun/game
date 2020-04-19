@@ -2,11 +2,11 @@
 CC=gcc
 CXX=g++
 CFLAGS= -std=c++11 -ggdb
-LIBS= -lpthread -pthread -lcurl -lev -lcrypto -lssl
-OBJS= ./obj/main.o ./obj/Server.o ./obj/Users.o ./obj/utilities.o
+LIBS= -lpthread -pthread -lcurl -lev -lcrypto -lssl -lmysqlcppconn
+OBJS= ./obj/main.o ./obj/Server.o ./obj/RegistryService.o ./obj/utilities.o
 OBJS+= ./obj/Protocol.o ./obj/Requests.o ./obj/Jwt.o ./obj/base64.o
 OBJS+= ./obj/Matcher.o ./obj/Game.o ./obj/GameService.o ./obj/Questions.o
-OBJS+= ./obj/debug.o
+OBJS+= ./obj/debug.o ./obj/GameDAL.o ./obj/RegistryDAO.o
 
 all: server
 
@@ -16,15 +16,15 @@ image:
 	@echo "linking $@"
 	@$(CXX) $(CFLAGS) $(OBJS) $(LIBS) -o server
 
-build: main Users Server Jwt base64 Protocol Requests utilities Matcher Game GameService Questions debug
+build: main RegistryService Server Jwt base64 Protocol Requests utilities Matcher Game GameService Questions debug GameDAL RegistryDAO
 
-main: ./src/main.cpp ./inc/Server.h ./inc/Users.h
+main: ./src/main.cpp
 	@echo "compiling $@"
 	@$(CXX) $(CFLAGS) -c -g -I"./inc" -I"./version" ./src/main.cpp -o ./obj/main.o
 	
-Users: ./src/Users.cpp ./inc/Users.h ./inc/json.hpp
+RegistryService: ./src/RegistryService.cpp ./inc/RegistryService.h
 	@echo "compiling $@"
-	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Users.cpp -o ./obj/Users.o
+	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/RegistryService.cpp -o ./obj/RegistryService.o
 
 Server: ./src/Server.cpp ./inc/Server.h ./inc/Requests.h
 	@echo "compiling $@"
@@ -69,6 +69,14 @@ Questions: ./src/Questions.cpp ./inc/Questions.h
 debug: ./src/debug.cpp ./inc/debug.h
 	@echo "compiling $@"
 	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/debug.cpp -o ./obj/debug.o
+
+GameDAL: ./src/GameDAL.cpp ./inc/GameDAL.h
+	@echo "compiling $@"
+	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/GameDAL.cpp -o ./obj/GameDAL.o
+
+RegistryDAO: ./src/RegistryDAO.cpp ./inc/RegistryDAO.h
+	@echo "compiling $@"
+	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/RegistryDAO.cpp -o ./obj/RegistryDAO.o
 
 incver:
 	@./version/incver.sh

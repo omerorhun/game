@@ -22,18 +22,18 @@ struct ev_loop *Server::_ploop = NULL;
 
 using namespace std;
 
-Server *Server::p_instance = NULL;
+Server *Server::_ps_instance = NULL;
 
 #if CPP_STYLE_LIBEV
 Server::Server(ev::dynamic_loop &loop) {
-    p_instance = this;
+    _ps_instance = this;
 
     _waccept.set(loop);
 }
 #else
 Server::Server() {
-    if (p_instance == NULL) {
-        p_instance = this;
+    if (_ps_instance == NULL) {
+        _ps_instance = this;
         
         // init loop
         _ploop = ev_default_loop(0);
@@ -42,8 +42,8 @@ Server::Server() {
 }
 
 Server::Server(int port) {
-    if (p_instance == NULL) {
-        p_instance = this;
+    if (_ps_instance == NULL) {
+        _ps_instance = this;
         
         // init loop
         _ploop = ev_default_loop(0);
@@ -219,73 +219,11 @@ int Server::wait_clients() {
 #endif // CPP_STYLE_LIBEV
 
 Server *Server::get_instance() {
-    return p_instance;
+    return _ps_instance;
 }
 
-mutex mtx;
-
-void Server::add_messagebox(int sesion_id) {
-    vector<string> subqueue;
-    int size = message_queue.size();
-    
-    mlog.log_debug("add messagebox for %d", sesion_id);
-    
-    mtx.lock();
-    message_queue.insert(pair<int,vector<string> >(sesion_id, vector<string>()));
-    mtx.unlock();
-    
-    if (size == message_queue.size())
-        mlog.log_debug("error on adding user");
-}
-
-void Server::add_message_by_id(int sesion_id, string msg) {
-    if (message_queue.find(sesion_id) == message_queue.end()) {
-        return;
-    }
-    
-    message_queue.at(sesion_id).push_back(msg);
-}
-
-string Server::get_message_by_id(int sesion_id) {
-    string msg("empty");
-    
-    if (message_queue.find(sesion_id) == message_queue.end()) {
-        return msg;
-    }
-    
-    vector<string> *p_user = &message_queue.at(sesion_id);
-    
-    if (message_queue.at(sesion_id).size() > 0) {
-        msg = (*p_user).front();
-        p_user->erase(p_user->begin());
-    }
-    
-    return msg;
-}
-
-int Server::check_for_messages(int session_id) {
-    int size = 0;
-    
-    try {
-        mtx.lock();
-        size = message_queue.at(session_id).size();
-        mtx.unlock();
-        
-        if (size > 0)
-            mlog.log_debug("%d messages for user%d", size, session_id);
-    }
-    catch (const out_of_range& oor) {
-        mlog.log_debug("queue size: %d", (int)message_queue.size());
-        mlog.log_debug("id: %d", session_id);
-        mlog.log_debug("out of range %s", oor.what());
-        mlog.log_debug("-------------------------------------------------------------------");
-    }
-    
-    return size;
-}
-
-vector<int> Server::get_online_clients() {
-    vector<int> copy;
+vector<uint64_t> Server::get_online_clients() {
+    vector<uint64_t> copy;
     for (ClientConnectionInfo i : _online_clients)
         copy.push_back(i.uid);
     
@@ -293,7 +231,7 @@ vector<int> Server::get_online_clients() {
 }
 
 #include <algorithm>
-bool Server::is_client_online(int uid) {
+bool Server::is_client_online(uint64_t uid) {
     ClientConnectionInfo *cci = lookup_by_uid(uid);
     if (cci == NULL)
         return false;
@@ -319,7 +257,7 @@ int Server::login(ClientConnectionInfo client_conn) {
     return 1;
 }
 
-int Server::logout(int uid) {
+int Server::logout(uint64_t uid) {
     
     for (int i = 0; i < _online_clients.size(); i++) {
         if (_online_clients[i].uid == uid) {
@@ -332,7 +270,7 @@ int Server::logout(int uid) {
 }
 
 // TODO: add mutex here
-ClientConnectionInfo *Server::lookup_by_uid(int uid) {
+ClientConnectionInfo *Server::lookup_by_uid(uint64_t uid) {
     ClientConnectionInfo *ret = NULL;
     for (int i = 0; i < _online_clients.size(); i++) {
         if (_online_clients[i].uid == uid) {
@@ -356,7 +294,7 @@ ClientConnectionInfo *Server::lookup_by_socket(int socket) {
     return ret;
 }
 
-int Server::get_socket(int uid) {
+int Server::get_socket(uint64_t uid) {
     ClientConnectionInfo *cci = lookup_by_uid(uid);
     
     if (cci == NULL)
@@ -365,7 +303,7 @@ int Server::get_socket(int uid) {
     return cci->socket;
 }
 
-int Server::get_uid(int socket) {
+uint64_t Server::get_uid(int socket) {
     ClientConnectionInfo *cci = lookup_by_socket(socket);
     
     if (cci == NULL)

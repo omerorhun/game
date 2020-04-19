@@ -12,16 +12,19 @@ class GameService {
     
     public:
         GameService();
-        static GameService *_p_instance;
         static GameService *get_instance();
         
         int create_game(Rivals rivals);
-        ErrorCodes accept_game(int game_id, int user_id);
+        ErrorCodes accept_game(int game_id, uint64_t uid);
         ErrorCodes start_game(int game_id);
-        Game *lookup(int uid);
-        int get_game_id(int uid);
+        ErrorCodes finish_game_with_uid(uint64_t uid);
+        ErrorCodes finish_game(int game_id);
+        ErrorCodes remove_game(int game_id);
+        Game *lookup(uint64_t uid);
+        int get_game_id(uint64_t uid);
         
     private:
+        static GameService *_ps_instance;
         static int _s_game_count;
         static std::vector<Game> _games;
 };

@@ -5,27 +5,28 @@
 
 typedef enum{
     ERR_SUCCESS = 0,
-    ERR_CONNECTION,
-    ERR_REQ_LOGIN,
-    ERR_REQ_WRONG_HEADER,
-    ERR_REQ_WRONG_REQ_CODE,
-    ERR_REQ_WRONG_LENGTH,
-    ERR_REQ_CRC,
-    ERR_REQ_WRONG_TOKEN,
-    ERR_REQ_DISCONNECTED,
-    ERR_REQ_MATCH_FAIL,
-    ERR_REQ_UNKNOWN,
-    ERR_USERS_LOGIN_SUCCESS,
-    ERR_USERS_SIGNUP_SUCCESS,
-    ERR_USERS_FB,
-    ERR_FB_INVALID_ACCESS_TOKEN,
-    ERR_FB_UNKNOWN,
-    ERR_SRV_ACCEPT_CONN,
-    ERR_GAME_NOT_MATCHED,
-    ERR_GAME_START_FAIL,
-    ERR_GAME_START_TIMEOUT,
-    ERR_GAME_NOT_FOUND,
-    ERR_GAME_WRONG_PACKET
+    ERR_CONNECTION,                 // 1
+    ERR_REQ_LOGIN,                  // 2
+    ERR_REQ_WRONG_HEADER,           // 3
+    ERR_REQ_WRONG_REQ_CODE,         // 4
+    ERR_REQ_WRONG_LENGTH,           // 5
+    ERR_REQ_CRC,                    // 6
+    ERR_REQ_WRONG_TOKEN,            // 7
+    ERR_REQ_DISCONNECTED,           // 8
+    ERR_REQ_MATCH_FAIL,             // 9
+    ERR_REQ_UNKNOWN,                // 10
+    ERR_USERS_LOGIN_SUCCESS,        // 11
+    ERR_USERS_SIGNUP_SUCCESS,       // 12
+    ERR_USERS_FB,                   // 13
+    ERR_FB_INVALID_ACCESS_TOKEN,    // 14
+    ERR_FB_UNKNOWN,                 // 15
+    ERR_SRV_ACCEPT_CONN,            // 16
+    ERR_GAME_NOT_MATCHED,           // 17
+    ERR_GAME_START_FAIL,            // 18
+    ERR_GAME_START_TIMEOUT,         // 19
+    ERR_GAME_NOT_FOUND,             // 20
+    ERR_GAME_WRONG_PACKET,          // 21
+    ERR_LOGIN_ALREADY_LOGGED_IN     // 22
 }ErrorCodes;
 
 typedef enum {

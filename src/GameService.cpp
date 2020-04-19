@@ -8,26 +8,26 @@ using namespace std;
 
 vector<Game> GameService::_games;
 int GameService::_s_game_count = 0;
-GameService *GameService::_p_instance = NULL;
+GameService *GameService::_ps_instance = NULL;
 
 GameService::GameService() {
-    if (_p_instance == NULL) {
-        _p_instance = this;
+    if (_ps_instance == NULL) {
+        _ps_instance = this;
     }
 }
 
 GameService *GameService::get_instance() {
-    if (_p_instance == NULL) {
-        GameService();
+    if (_ps_instance == NULL) {
+        _ps_instance = new GameService();
     }
     
-    return _p_instance;
+    return _ps_instance;
 }
 
 int GameService::create_game(Rivals rivals) {
     mlog.log_info("create game");
     
-    mlog.log_debug("%d - %d", rivals.user1.uid, rivals.user2.uid);
+    mlog.log_debug("%lu - %lu", rivals.user1.uid, rivals.user2.uid);
     int game_id = 0;
     
     // if not create new game
@@ -38,12 +38,37 @@ int GameService::create_game(Rivals rivals) {
     return game_id;
 }
 
-ErrorCodes GameService::accept_game(int game_id, int user_id) {
-    Game *game = lookup(user_id);
-    game->accept_game(user_id);
+ErrorCodes GameService::accept_game(int game_id, uint64_t uid) {
+    Game *game = lookup(uid);
+    game->accept_game(uid);
 }
 
-Game *GameService::lookup(int uid) {
+ErrorCodes GameService::remove_game(int game_id) {
+    for (int i = 0; i < _games.size(); i++) {
+        if (_games[i].get_game_id() == game_id) {
+            _games.erase(_games.begin() + i);
+            break;
+        }
+    }
+    
+    return ERR_SUCCESS;
+}
+
+ErrorCodes GameService::finish_game(int game_id) {
+    return remove_game(game_id);
+}
+
+ErrorCodes GameService::finish_game_with_uid(uint64_t uid) {
+    int game_id = get_game_id(uid);
+    if (game_id == 0) {
+        // game no exists, so may be already removed
+        return ERR_SUCCESS;
+    }
+    
+     return remove_game(game_id);
+}
+
+Game *GameService::lookup(uint64_t uid) {
     Game *game = NULL;
     
     for (int i = 0; i < _games.size(); i++) {
@@ -58,8 +83,8 @@ Game *GameService::lookup(int uid) {
     return game;
 }
 
-int GameService::get_game_id(int user_id) {
-    Game *game = lookup(user_id);
+int GameService::get_game_id(uint64_t uid) {
+    Game *game = lookup(uid);
     if (game == NULL)
         return 0;
     

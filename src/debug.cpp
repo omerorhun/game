@@ -36,14 +36,14 @@ const char *Dlogger::level_colors[] = {
     "\x1b[94m", "\x1b[36m", "\x1b[32m", "\x1b[33m", "\x1b[31m", "\x1b[35m"
     };
 
-Dlogger::Dlogger(int uid) {
+Dlogger::Dlogger(uint64_t uid) {
   _level = LOG_DEBUG;
   _fp = NULL;
   _quiet = 0;
   
   char file_name[32];
   memset(file_name, 0, 32);
-  sprintf(file_name, "%d_log.txt", uid);
+  sprintf(file_name, "%lu_log.txt", uid);
   
   _fp = fopen(file_name, "a+");
 }
@@ -174,8 +174,6 @@ void Dlogger::log_dhex(int level, const char *header, char *buffer, uint16_t len
       goto L_END;
     }
     
-    va_list args;
-    
     if (outstream == stderr) {
       char buf[16];
       buf[strftime(buf, sizeof(buf), "[%H:%M:%S]", lt)] = '\0';
@@ -236,6 +234,10 @@ void Dlogger::log_dhex(int level, const char *header, char *buffer, uint16_t len
     /* Log to stderr or file */
     if (!_quiet) {
       outstream = stderr;
+    }
+    else {
+      // quiet mode is active, so dont print to stderr
+      break;
     }
   }
   

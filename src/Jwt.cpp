@@ -18,13 +18,18 @@ Jwt::Jwt(string token, string key) {
         _is_valid = true;
 }
 
-Jwt::Jwt(long user_id, long expire, string key) {
+Jwt::Jwt(uint64_t uid, long expire, string key) {
     nlohmann::json header = {{"alg", "HS256"},{"typ", "JWT"}};
     
     _header.append(header.dump());
     
     nlohmann::json payload_json;
-    payload_json["id"] = user_id;
+    
+    // fix id number to ten digits (for fixed token size)
+    char id_ten_digit[11];
+    sprintf(id_ten_digit, "%010lu\0", uid);
+    
+    payload_json["id"] = id_ten_digit;
     payload_json["expire"] = expire;
     
     _payload = payload_json.dump();
@@ -143,8 +148,8 @@ bool Jwt::is_expired() {
     return true;
 }
 
-int Jwt::get_uid() {
-    nlohmann::json plaod = nlohmann::json::parse(_payload);
-    int uid = plaod["id"];
-    return uid;
+uint64_t Jwt::get_uid() {
+    nlohmann::json pload = nlohmann::json::parse(_payload);
+    string uid = pload["id"];
+    return stoul(uid);
 }

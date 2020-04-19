@@ -31,7 +31,7 @@ enum { LOG_TRACE, LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERROR, LOG_FATAL };
 class Dlogger {
     public:
     Dlogger();
-    Dlogger(int uid);
+    Dlogger(uint64_t uid);
     Dlogger(std::string name);
     ~Dlogger();
     void log_set_udata(void *udata);

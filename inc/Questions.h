@@ -8,14 +8,14 @@
 class Questions {
     
     public:
-    static Questions *_p_instance;
+    
     static Questions *get_instance();
     
     Questions();
     std::string get_question(int count);
     
-    
     private:
+    static Questions *_ps_instance;
     
 };
 

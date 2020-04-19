@@ -5,7 +5,7 @@
 #include "constants.h"
 
 #define RX_BUFFER_SIZE 1024
-#define TOKEN_SIZE 130
+#define TOKEN_SIZE 134
 
 #define PROTOCOL_HEADER 0x01
 
@@ -51,7 +51,7 @@ class Protocol {
   bool set_crc();
   
   bool check_crc();
-  bool check_token(std::string key, int *p_uid);
+  bool check_token(std::string key, uint64_t *p_uid);
   
   void send_packet(int sock);
   bool receive_packet(int sock);
