@@ -264,13 +264,17 @@ FILE *Dlogger::generate_log_file() {
     do {
         memset(filename, 0, 64);
         
-        sprintf(filename, "%s/server_%02d-%02d-%02d.log", filepath,
+        sprintf(filename, "%s/server_%02d-%02d-%02d", filepath,
                                                         tm_st->tm_hour,
                                                         tm_st->tm_min,
                                                         tm_st->tm_sec);
         if (try_count > 0) {
             int len = strlen(filename);
-            sprintf(&filename[len], "-%d", try_count);
+            sprintf(&filename[len], "-%d.log", try_count);
+        }
+        else {
+          int len = strlen(filename);
+            sprintf(&filename[len], ".log");
         }
         
         try_count++;
