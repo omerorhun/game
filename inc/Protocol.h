@@ -32,7 +32,9 @@ struct ProtocolCrcException : public std::exception {
 class Protocol {
   public:
   Protocol();
+  Protocol(const Protocol &obj);
   Protocol(uint8_t *buffer);
+  Protocol operator=(const Protocol &obj);
   ~Protocol();
   
   uint8_t get_header();

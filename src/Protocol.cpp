@@ -38,9 +38,32 @@ Protocol::Protocol(uint8_t *buffer) {
     }
 }
 
+Protocol::Protocol(const Protocol &obj) {
+    //mlog.log_debug("copy constructor");
+    this->_buffer = (uint8_t *)malloc(obj._length * sizeof(uint8_t));
+    //mlog.log_debug("++++++++_buffer: %p\n", _buffer);
+    memcpy((char *)this->_buffer, (const char *)obj._buffer, obj._length);
+    this->_length = obj._length;
+    this->_data_length = obj._data_length;
+}
+
+Protocol Protocol::operator=(const Protocol &obj) {
+    Protocol protocol;
+    protocol._buffer = (uint8_t *)malloc(obj._length * sizeof(uint8_t));
+    //mlog.log_debug("++++++++_buffer: %p\n", _buffer);
+    memcpy((char *)protocol._buffer, (const char *)obj._buffer, obj._length);
+    protocol._length = obj._length;
+    protocol._data_length = obj._data_length;
+    
+    return protocol;
+}
+
 Protocol::~Protocol() {
     if (_buffer != NULL) {
+        //mlog.log_debug("protocol destructor");
+        //mlog.log_debug("------_buffer: %p\n", _buffer);
         free(_buffer);
+        //mlog.log_debug("protocol buffer freed");
         _buffer = NULL;
     }   
 }
@@ -102,6 +125,7 @@ uint16_t Protocol::get_length() {
 
 void Protocol::free_buffer() {
     if (_buffer != NULL) {
+        mlog.log_debug("free buffer");
         free(_buffer);
         _buffer = NULL;
     }

@@ -29,6 +29,24 @@ Requests::~Requests() {
 
 void Requests::send_response() {
     _out_packet.send_packet(socket);
+    
+    mlog.log_debug("notification count: %d", (int)_notifications.size());
+    if (_notifications.size()) {
+        mlog.log_debug("notifications sending... (%d)", (int)_notifications.size());
+    }
+    useconds_t usec = 500000;
+    usleep(usec);
+    
+    // send notifications that relevant with this request
+    while (_notifications.size() != 0) {
+        mlog.log_debug("1remaining notification: %d", _notifications.size());
+        mlog.log_debug("notification socket: %d", _notifications.back().socket);
+        _notifications.back().packet.send_packet(_notifications.back().socket);
+        _notifications.pop_back();
+        mlog.log_debug("2remaining notification: %d", _notifications.size());
+        
+        usleep(usec);
+    }
 }
 
 ErrorCodes Requests::get_request() {
@@ -188,10 +206,13 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
                                     B1(onl_cli[i]),
                                     B2(onl_cli[i]),
                                     B3(onl_cli[i]),
-                                    // TODO: convert here to 64 bit version
+                                    B4(onl_cli[i]),
+                                    B5(onl_cli[i]),
+                                    B6(onl_cli[i]),
+                                    B7(onl_cli[i]),
                                 };
             
-            add_data(buffer, 4);
+            add_data(buffer, 8);
         }
     }
     else if (req_code == REQ_MATCH) {
@@ -200,71 +221,27 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
         }
-        UserMatchInfo user;
+        
         mlog.log_debug("match request from : %lu", uid);
+        
         // find opponent
         // 1- add client's uid to the 'waiting matches list'
         //  Note: matcher will find an opponent from waiting list and throws an event
-        user.uid = uid;
-        user.op_uid = 0;
-        add_to_match_queue(&user);
+        UserMatchInfo *user = new UserMatchInfo();
+        user->uid = uid;
+        user->socket = socket;
+        user->timer.set(MATCH_TIMEOUT, uid);
+        user->timer.start();
         
-        // 2- wait for match with timeout
-        mlog.log_debug("waiting match for %lu...", uid);
+        add_to_match_queue(user);
+        
+        // 2- start a timer for match timeout
         time_t start_dt = time(0);
-        ret = is_matched(&user, start_dt, true);
-        if (ret != ERR_SUCCESS) {
-            // match failed. send error message
-            mlog.log_error("match has timed out");
-            goto L_ERROR;
-        }
         
-        // create new game
-        int game_id = 0;
-        if (user.uid > user.op_uid) {
-            Rivals riv;
-            riv.user1.uid = user.uid;
-            riv.user1.socket = socket;
-            riv.user1.accept = false;
-            riv.user2.uid = user.op_uid;
-            riv.user2.socket = get_socket(user.op_uid);
-            riv.user2.accept = false;
-            game_id = create_game(riv);
-            // is game id must be saved?
-        }
-        else {
-            while (game_id == 0)
-                game_id = get_game_id(user.uid);
-        }
-        
-        // match success
-        mlog.log_debug("%lu matched with %lu", user.uid, user.op_uid);
         set_request_code(REQ_MATCH);
-        mlog.log_debug("debug");
-        // 3- get opponent info :
-        RegistryInfo op = auth_service->get_user_data(user.op_uid);
-        mlog.log_debug("debug");
-        nlohmann::json op_json;
-        op_json["id"] = op.uid;
-        op_json["fb_id"] = op.fb_id;
-        op_json["name"] = op.name;
-        op_json["url"] = op.picture_url;
-        op_json["game_id"] = game_id;
-        mlog.log_debug("debug");
-        // 4- prepare package for transmitting to the client
-        add_data(op_json.dump());
-        mlog.log_debug("debug");
-#if 0
-        uint8_t buffer[4] = {
-            B0(user.op_uid),
-            B1(user.op_uid),
-            B2(user.op_uid),
-            B3(user.op_uid)
-        };
-        
-        add_data(buffer, 4);
-#endif
-        // end
+        // send ack
+        uint8_t data = ACK;
+        add_data(&data, 1);
     }
     else if (req_code == REQ_CANCEL_MATCH) {
         if (indata.size() != 0) {
@@ -280,7 +257,7 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         uint8_t data = ACK;
         add_data(&data, 1);
     }
-    else if(req_code == REQ_START_GAME) {
+    else if(req_code == REQ_GAME_START) {
         // get game id from indata
         
         Game *game = GameService::get_instance()->lookup(uid);
@@ -293,7 +270,6 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         // set acception for this client
         game->accept_game(uid);
         
-        // TODO: add timeout!
         // wait for opponents answer
         time_t start_dt = time(NULL);
         ErrorCodes ret = game->is_ready(start_dt, true);
@@ -310,18 +286,26 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         string questions = game->get_questions();
         nlohmann::json data_json = nlohmann::json::parse(questions);
         data_json["start_dt"] = game->get_start_dt();
-        set_request_code(REQ_START_GAME);
+        set_request_code(REQ_GAME_START);
         
         // send questions
         add_data(data_json.dump());
     }
     else if (req_code == REQ_GAME_ANSWER) {
-        // TODO: check if game exists
+        // check if game exists
         Game *game = GameService::get_instance()->lookup(uid);
         if (game == NULL) {
             ret = ERR_GAME_NOT_FOUND;
             goto L_ERROR;
         }
+        
+        if (game->is_answered(uid)) {
+            ret = ERR_GAME_ALREADY_ANSWERED;
+            goto L_ERROR;
+        }
+        
+        // TEST: set as answered this user
+        game->set_answer(uid);
         
         // check data and get answer
         string answer;
@@ -332,12 +316,62 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         }
         
         GameUser op = game->get_opponent(uid);
+        
+        mlog.log_debug("check timer: %ld", game->check_timer());
+        // TEST: if both of rivals has answered current question
+        // send question complete notification both of them
+        if (!game->check_timer()) {
+            mlog.log_debug("both of rivals answered");
+            
+            // for opponent
+            add_notification(op.socket, REQ_GAME_QUESTION_COMPLETED, "");
+            mlog.log_debug("notification added");
+            
+            // for this user
+            add_notification(socket, REQ_GAME_QUESTION_COMPLETED, "");
+            mlog.log_debug("notification added");
+            
+            // TEST: start a timer to check if this question has timed out
+            // timer must be in the game object
+            game->start_timer();
+            mlog.log_debug("timer started");
+        }
+        
         // add game answer request to the queue for the opponent user
         mlog.log_debug("op.socket: %d", op.socket);
-        send_notification(op.socket, REQ_GAME_ANSWER, answer);
+        add_notification(op.socket, REQ_GAME_OPPONENT_ANSWER, answer);
+        mlog.log_debug("notification added");
         
         // send ack to this user
         set_request_code(REQ_GAME_ANSWER);
+        uint8_t outdata = ACK;
+        add_data(&outdata, 1);
+    }
+    else if (req_code == REQ_GAME_RESIGN) {
+        Game *game = GameService::get_instance()->lookup(uid);
+        if (game == NULL) {
+            ret = ERR_GAME_NOT_FOUND;
+            goto L_ERROR;
+        }
+        
+        // TODO: check if game is active, no one resigned etc.
+        
+        // mark this user as resigned on game object
+        game->resign(uid);
+        
+        set_request_code(REQ_GAME_RESIGN);
+        uint8_t outdata = ACK;
+        add_data(&outdata, 1);
+    }
+    else if (req_code == REQ_GAME_FINISH) {
+        // release game object and its content (timer etc.)
+        Game *game = GameService::get_instance()->lookup(uid);
+        if (game != NULL) {
+            GameService::get_instance()->finish_game(game->get_game_id());
+            mlog.log_debug("game finished");
+        }
+        
+        set_request_code(REQ_GAME_FINISH);
         uint8_t outdata = ACK;
         add_data(&outdata, 1);
     }
@@ -353,12 +387,23 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
     return ret;
 }
 
-void Requests::send_notification(int socket, RequestCodes req_code, string data) {
+void Requests::add_notification(int socket, RequestCodes req_code, string data) {
+    NotificationInfo ni;
+    ni.packet.set_header(REQUEST_HEADER);
+    ni.packet.set_request_code(req_code);
+    ni.packet.add_data(data);
+    ni.packet.set_crc();
+    ni.socket = socket;
+    _notifications.push_back(ni);
+}
+
+void Requests::send_notification_async(int socket, RequestCodes req_code, string data) {
     Protocol packet;
     packet.set_header(REQUEST_HEADER);
     packet.set_request_code(req_code);
     packet.add_data(data);
     packet.set_crc();
+    usleep(500000); // 500ms delay, temporary
     packet.send_packet(socket);
 }
 
@@ -401,12 +446,6 @@ bool Requests::set_request_code(RequestCodes req_code) {
     return _out_packet.set_request_code((uint8_t)(req_code & 0xFF));
 }
 
-#if 0
-bool Requests::set_ack(uint8_t ack) {
-    return _out_packet.set_ack(ack);
-}
-#endif
-
 bool Requests::set_token(uint64_t uid) {
     time_t start_dt = time(NULL); // get current dt
     Jwt token(uid, start_dt, jwt_key);
@@ -434,7 +473,10 @@ void Requests::logout(uint64_t uid) {
     
     // remove game if exists
     // TODO: user must be resign. do not remove game, resign user.
-    //GameService::get_instance()->finish_game(uid);
+    Game *game = GameService::get_instance()->lookup(uid);
+    if (game != NULL) {
+        game->resign(uid);
+    }
     
     //logout
     Server::get_instance()->logout(uid);
@@ -450,27 +492,8 @@ void Requests::remove_from_match_queue(UserMatchInfo *user) {
 
 void Requests::cancel_match(uint64_t uid) {
     UserMatchInfo *user = Matcher::get_instance()->lookup(uid);
-    if (user != NULL)
+    if (user->uid != 0)
         Matcher::get_instance()->remove(user);
-}
-
-ErrorCodes Requests::is_matched(UserMatchInfo *user, time_t start, bool is_blocking) {
-    if (!is_blocking) {
-        if (user->op_uid == 0)
-            return ERR_REQ_MATCH_FAIL;
-        
-        return ERR_SUCCESS;
-    }
-    
-    while(user->op_uid == 0) {
-        // wait
-        if (time(0) > (start + MATCH_TIMEOUT)) {
-            remove_from_match_queue(user);
-            return ERR_REQ_MATCH_FAIL;
-        }
-    }
-    
-    return ERR_SUCCESS;
 }
 
 int Requests::create_game(Rivals rivals) {

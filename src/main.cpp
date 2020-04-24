@@ -32,7 +32,7 @@ bool get_args(int argc, char **argv, uint16_t *port);
 
 int main (int argc, char **argv) {
     uint16_t port;
-    mlog.log_set_quiet(0);
+    mlog.log_set_quiet(1);
     
     mlog.log_info("Version: %s", VERSION_FILEVERSION_STR);
     

@@ -3,6 +3,7 @@
 
 #include <time.h>
 #include "errors.h"
+#include "Timer.h"
 
 #define GAME_START_TIMEOUT 20
 
@@ -17,7 +18,9 @@ typedef enum {
 typedef struct {
     uint64_t uid;
     int socket;
-    bool accept;
+    bool accept = false;
+    bool is_resigned = false;
+    bool is_answered = false;
 }GameUser;
 
 typedef struct {
@@ -27,6 +30,7 @@ typedef struct {
 
 class Game {
     public:
+    Game();
     Game(int game_id, Rivals rivals);
     int get_game_id();
     Rivals get_rivals();
@@ -37,10 +41,22 @@ class Game {
     time_t get_start_dt();
     GameUser get_opponent(uint64_t uid);
     
+    void set_answer(uint64_t uid);
+    bool is_answered(uint64_t uid);
+    void resign(uint64_t uid);
+    
+    void timeout_func(void *arg);
+    
+    void set_timer();
+    void start_timer();
+    void stop_timer();
+    time_t check_timer();
+    
     private:
     int _game_uid;
     time_t _start_dt;
     Rivals _rivals;
+    Timer _timer;
     GameState _state;
     std::string _questions;
 };

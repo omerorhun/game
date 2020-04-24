@@ -3,6 +3,8 @@
 
 #include "RegistryDAO.h"
 
+#include "debug.h"
+
 #define TABLE_NAME "Users"
 #define COL_ID "id"
 #define COL_FB_ID "fb_id"
@@ -52,6 +54,7 @@ RegistryInfo RegistryDAO::get_user_by_uid(uint64_t uid) {
     pstmt->setUInt64(1, uid);
     sql::ResultSet *res = pstmt->executeQuery();
     RegistryInfo reg_info;
+    
     if (res->next()) {
         reg_info.uid = res->getUInt64(COL_ID);
         reg_info.fb_id = res->getUInt64(COL_FB_ID);

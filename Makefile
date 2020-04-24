@@ -6,7 +6,7 @@ LIBS= -lpthread -pthread -lcurl -lev -lcrypto -lssl -lmysqlcppconn
 OBJS= ./obj/main.o ./obj/Server.o ./obj/RegistryService.o ./obj/utilities.o
 OBJS+= ./obj/Protocol.o ./obj/Requests.o ./obj/Jwt.o ./obj/base64.o
 OBJS+= ./obj/Matcher.o ./obj/Game.o ./obj/GameService.o ./obj/Questions.o
-OBJS+= ./obj/debug.o ./obj/GameDAL.o ./obj/RegistryDAO.o
+OBJS+= ./obj/debug.o ./obj/GameDAL.o ./obj/RegistryDAO.o ./obj/Timer.o
 
 all: server
 
@@ -16,7 +16,7 @@ image:
 	@echo "linking $@"
 	@$(CXX) $(CFLAGS) $(OBJS) $(LIBS) -o server
 
-build: main RegistryService Server Jwt base64 Protocol Requests utilities Matcher Game GameService Questions debug GameDAL RegistryDAO
+build: main RegistryService Server Jwt base64 Protocol Requests utilities Matcher Game GameService Questions debug GameDAL RegistryDAO Timer
 
 main: ./src/main.cpp
 	@echo "compiling $@"
@@ -78,6 +78,10 @@ RegistryDAO: ./src/RegistryDAO.cpp ./inc/RegistryDAO.h
 	@echo "compiling $@"
 	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/RegistryDAO.cpp -o ./obj/RegistryDAO.o
 
+Timer: ./src/Timer.cpp ./inc/Timer.h
+	@echo "compiling $@"
+	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Timer.cpp -o ./obj/Timer.o
+	
 incver:
 	@./version/incver.sh
 

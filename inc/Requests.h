@@ -9,6 +9,7 @@
 #include "errors.h"
 #include "constants.h"
 #include <ev.h>
+#include <vector>
 
 #define REQUEST_HEADER 0x01
 #define ACK 0x01
@@ -30,10 +31,20 @@ typedef enum {
     REQ_DISCONNECT,
     REQ_ERROR,
     REQ_CANCEL_MATCH,
-    REQ_START_GAME,
+    REQ_GAME_START,
     REQ_GAME_ANSWER,
-    REQ_GAME_OPPONENT_ANSWER
+    REQ_GAME_OPPONENT_ANSWER,
+    REQ_GAME_QUESTION_COMPLETED,
+    REQ_GAME_RESIGN,
+    REQ_GAME_OPPONENT_RESIGNED,
+    REQ_GAME_OPPONENT_TIMEOUT,
+    REQ_GAME_FINISH
 }RequestCodes;
+
+typedef struct {
+  int socket;
+  Protocol packet;
+}NotificationInfo;
 
 class Requests {
   
@@ -48,6 +59,9 @@ class Requests {
   void prepare_error_packet(ErrorCodes err);
   void send_response();
   
+  void add_notification(int socket, RequestCodes req_code, std::string data);
+  static void send_notification_async(int socket, RequestCodes req_code, std::string data);
+  
   void login(ClientConnectionInfo client_conn);
   void logout(uint64_t uid);
   
@@ -57,6 +71,7 @@ class Requests {
   private:
   Protocol _in_packet;
   Protocol _out_packet;
+  std::vector<NotificationInfo> _notifications;
   
   int _uid;
   int socket;
@@ -74,7 +89,6 @@ class Requests {
   void add_to_match_queue(UserMatchInfo *user);
   void remove_from_match_queue(UserMatchInfo *user);
   void cancel_match(uint64_t uid);
-  ErrorCodes is_matched(UserMatchInfo *user, time_t start, bool is_blocking);
   
   // game
   int create_game(Rivals rivals);
@@ -82,7 +96,6 @@ class Requests {
   uint64_t get_uid(int socket);
   int get_game_id(uint64_t uid);
   ErrorCodes get_game_answer(std::string data, std::string &answer);
-  void send_notification(int socket, RequestCodes req_code, std::string data);
   
   bool check_request_code();
   bool check_length();

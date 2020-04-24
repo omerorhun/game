@@ -57,11 +57,13 @@ ErrorCodes RegistryService::sign_in(uint64_t *uid, string access_token) {
     
     if (_p_game_dal->check_registry_by_fb_id(user_info.fb_id)) {
         // login
-        mlog.log_debug("%s is already registered [%d]", user_info.name.c_str(), user_info.uid);
+        
         // get user from db
         RegistryInfo registry = _p_game_dal->get_user_by_fb_id(user_info.fb_id);
         
         *uid = registry.uid;
+        
+        mlog.log_debug("%s is already registered [%lu]", registry.name.c_str(), registry.uid);
     }
     else {
         // user not found, new registry
@@ -71,7 +73,7 @@ ErrorCodes RegistryService::sign_in(uint64_t *uid, string access_token) {
         RegistryInfo registry = _p_game_dal->get_user_by_fb_id(user_info.fb_id);
         
         *uid = registry.uid;
-        mlog.log_debug("%s registered [%d]", user_info.name.c_str(), user_info.uid);
+        mlog.log_debug("%s registered [%lu]", user_info.name.c_str(), user_info.uid);
     }
     
     return err;

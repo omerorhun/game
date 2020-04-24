@@ -2,8 +2,8 @@
 
 #define DATABASE_HOSTNAME "localhost"
 #define DATABASE_NAME "testdb"
-#define DATABASE_USERNAME "root"
-#define DATABASE_PASSWORD "kar12345"
+#define DATABASE_USERNAME "orhun"
+#define DATABASE_PASSWORD "3536"
 
 using namespace std;
 
