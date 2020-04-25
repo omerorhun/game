@@ -1,6 +1,5 @@
-registry.json
 srv@srvfcontest.com
-.vscode/settings.json
 *.log
 *.o
-.vscode/settings.json
+*.json
+core
