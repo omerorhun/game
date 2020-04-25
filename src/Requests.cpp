@@ -16,6 +16,9 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
+#include <queue>
+#include <deque>
+
 using namespace std;
 
 Requests::Requests(int sock) {
@@ -40,11 +43,10 @@ void Requests::send_response() {
     // send notifications that relevant with this request
     while (_notifications.size() != 0) {
         mlog.log_debug("1remaining notification: %d", _notifications.size());
-        mlog.log_debug("notification socket: %d", _notifications.back().socket);
-        _notifications.back().packet.send_packet(_notifications.back().socket);
-        _notifications.pop_back();
+        mlog.log_debug("notification socket: %d", _notifications.front().socket);
+        _notifications.front().packet.send_packet(_notifications.front().socket);
+        _notifications.pop();
         mlog.log_debug("2remaining notification: %d", _notifications.size());
-        
         usleep(usec);
     }
 }
@@ -270,26 +272,9 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         // set acception for this client
         game->accept_game(uid);
         
-        // wait for opponents answer
-        time_t start_dt = time(NULL);
-        ErrorCodes ret = game->is_ready(start_dt, true);
-        if (ret != ERR_SUCCESS) {
-            // match failed. send error message
-            mlog.log_error("game start has timed out [error code: %d]", ret);
-            goto L_ERROR;
-        }
-        
-        // start game
-        game->start_game(uid);
-        
-        // get questions
-        string questions = game->get_questions();
-        nlohmann::json data_json = nlohmann::json::parse(questions);
-        data_json["start_dt"] = game->get_start_dt();
-        set_request_code(REQ_GAME_START);
-        
-        // send questions
-        add_data(data_json.dump());
+        set_request_code(REQ_GAME_ANSWER);
+        uint8_t data = ACK;
+        add_data(&data, 1);
     }
     else if (req_code == REQ_GAME_ANSWER) {
         // check if game exists
@@ -317,6 +302,11 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         
         GameUser op = game->get_opponent(uid);
         
+        // add game answer request to the queue for the opponent user
+        mlog.log_debug("op.socket: %d", op.socket);
+        add_notification(op.socket, REQ_GAME_OPPONENT_ANSWER, answer);
+        mlog.log_debug("notification added");
+        
         mlog.log_debug("check timer: %ld", game->check_timer());
         // TEST: if both of rivals has answered current question
         // send question complete notification both of them
@@ -337,10 +327,6 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
             mlog.log_debug("timer started");
         }
         
-        // add game answer request to the queue for the opponent user
-        mlog.log_debug("op.socket: %d", op.socket);
-        add_notification(op.socket, REQ_GAME_OPPONENT_ANSWER, answer);
-        mlog.log_debug("notification added");
         
         // send ack to this user
         set_request_code(REQ_GAME_ANSWER);
@@ -394,7 +380,7 @@ void Requests::add_notification(int socket, RequestCodes req_code, string data) 
     ni.packet.add_data(data);
     ni.packet.set_crc();
     ni.socket = socket;
-    _notifications.push_back(ni);
+    _notifications.push(ni);
 }
 
 void Requests::send_notification_async(int socket, RequestCodes req_code, string data) {

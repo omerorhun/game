@@ -58,36 +58,29 @@ void Matcher::find_match_cb(struct ev_loop *loop, ev_async *watcher, int revents
         // find random opponent here
         int op_idx = rand()%(remaining - 1) + 1;
         
-        mlog.log_debug("stop timers");
         _waiting_matches[0]->timer.stop();
         _waiting_matches[op_idx]->timer.stop();
-        mlog.log_debug("timers stopped");
         
         MatchResult result;
         result.user1 = *_waiting_matches[0];
         result.user2 = *_waiting_matches[op_idx];
         
-        mlog.log_debug("stop timers");
-        
         delete _waiting_matches[0];
-        mlog.log_debug("stop timers");
         delete _waiting_matches[op_idx];
-        
-        mlog.log_debug("stop timers");
         
         g_match_result_mtx.lock();
         _match_results.push_back(result);
         g_match_result_mtx.unlock();
-        mlog.log_debug("stop timers");
+        
         // first, remove opponent's uid from the list
         _waiting_matches.erase(_waiting_matches.begin() + op_idx);
-        mlog.log_debug("stop timers");
+        
         // then, remove this uid from the list
         _waiting_matches.erase(_waiting_matches.begin());
-        mlog.log_debug("stop timers");
+        
         if (ev_async_pending(&_create_game_watcher) == false)
             ev_async_send(_p_loop, &_create_game_watcher);
-        mlog.log_debug("stop timers");
+        
         g_waiting_list_mtx.unlock();
     }
 }
@@ -96,11 +89,11 @@ void Matcher::match_cb(struct ev_loop *loop, ev_async *watcher, int revents) {
     MatchResult result;
     
     g_match_result_mtx.lock();
-    mlog.log_debug("match");
+    
     result = _match_results.back();
     _match_results.pop_back();
     g_match_result_mtx.unlock();
-    mlog.log_debug("match");
+    
     // create new game
     int game_id = 0;
     Rivals riv;

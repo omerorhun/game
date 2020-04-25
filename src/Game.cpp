@@ -30,19 +30,24 @@ GameUser Game::get_opponent(uint64_t uid) {
     if (_rivals.user1.uid == uid) {
         return _rivals.user2;
     }
-    else {
-        return _rivals.user1;
-    }
+    
+    return _rivals.user1;
 }
 
 void Game::accept_game(uint64_t uid) {
-    if (_rivals.user1.uid == uid) 
+    if (_rivals.user1.uid == uid) {
         _rivals.user1.accept = true;
-    else if (_rivals.user2.uid == uid)
+    }
+    else if (_rivals.user2.uid == uid) {
         _rivals.user2.accept = true;
+    }
     
-    if (_rivals.user1.accept && _rivals.user2.accept)
+    if (_rivals.user1.accept && _rivals.user2.accept) {
         _state = GAME_RIVALS_READY;
+        
+        // start game
+        start_game();
+    }
 }
 
 ErrorCodes Game::is_ready(time_t start, bool is_blocking) {
@@ -67,16 +72,17 @@ time_t Game::get_start_dt() {
     return _start_dt;
 }
 
-void Game::start_game(uint64_t uid) {
-    if (uid == _rivals.user1.uid) {
-        
-        // get questions from db
-        _questions = Questions::get_instance()->get_question(5);
-        _start_dt = time(0);
-        _state = GAME_QUESTIONS_READY;
-        set_timer();
-        start_timer();
-    }
+void Game::start_game() {
+    // get questions from db
+    _questions = Questions::get_instance()->get_question(5);
+    _start_dt = time(0);
+    _state = GAME_QUESTIONS_READY;
+    
+    set_timer();
+    start_timer();
+    
+    Requests::send_notification_async(_rivals.user1.socket, REQ_GAME_ACCEPTED, _questions);
+    Requests::send_notification_async(_rivals.user2.socket, REQ_GAME_ACCEPTED, _questions);
 }
 
 string Game::get_questions() {

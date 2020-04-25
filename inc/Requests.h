@@ -10,6 +10,8 @@
 #include "constants.h"
 #include <ev.h>
 #include <vector>
+#include <queue>
+#include <list>
 
 #define REQUEST_HEADER 0x01
 #define ACK 0x01
@@ -32,6 +34,7 @@ typedef enum {
     REQ_ERROR,
     REQ_CANCEL_MATCH,
     REQ_GAME_START,
+    REQ_GAME_ACCEPTED,
     REQ_GAME_ANSWER,
     REQ_GAME_OPPONENT_ANSWER,
     REQ_GAME_QUESTION_COMPLETED,
@@ -71,7 +74,7 @@ class Requests {
   private:
   Protocol _in_packet;
   Protocol _out_packet;
-  std::vector<NotificationInfo> _notifications;
+  std::queue<NotificationInfo> _notifications;
   
   int _uid;
   int socket;

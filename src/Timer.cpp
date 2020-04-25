@@ -13,7 +13,6 @@ Timer::Timer() {
     _p_func = NULL;
     _uid_match = 0;
     _game = NULL;
-    mlog.log_debug("normal constructor _thread: %p", _thread);
 }
 
 Timer::Timer(const Timer &obj) {
@@ -24,7 +23,6 @@ Timer::Timer(const Timer &obj) {
     _p_func = NULL;
     _uid_match = 0;
     _game = NULL;
-    mlog.log_debug("copy constructor _thread: %p", _thread);
 }
 
 Timer Timer::operator=(const Timer &obj) {
@@ -41,11 +39,8 @@ Timer Timer::operator=(const Timer &obj) {
 }
 
 Timer::~Timer() {
-    mlog.log_debug("_thread: %p", _thread);
     if (_thread != NULL) {
         stop();
-        mlog.log_debug("timer destructor\n");
-        
         delete _thread;
         _thread = NULL;
     }
@@ -53,14 +48,12 @@ Timer::~Timer() {
 
 void Timer::set(time_t sec, void *game) {
     _thread = new thread();
-    mlog.log_debug("timer set _thread: %p", _thread);
     _timeout = sec;
     _game = game;
 }
 
 void Timer::set(time_t sec, uint64_t uid) {
     _thread = new thread();
-    mlog.log_debug("timer set _thread: %p", _thread);
     _timeout = sec;
     _uid_match = uid;
 }
@@ -79,19 +72,16 @@ void Timer::stop() {
         return;
     
     _is_active = false;
-    mlog.log_debug("stop the timer %p", _thread);
     _thread->detach();
 }
 
 void Timer::loop() {
-    
     while (time(NULL) < (_start_dt + _timeout)) {
         if (!_is_active) {
             return;
         }
     }
     
-    mlog.log_debug("timeout");
     if (_game != NULL)
         ((Game *)_game)->timeout_func(NULL);
     
@@ -101,7 +91,6 @@ void Timer::loop() {
 }
 
 time_t Timer::check() {
-    
     if (!_is_active)
         return 0;
     
