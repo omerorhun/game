@@ -139,7 +139,11 @@ Matcher *Matcher::get_instance() {
     return _p_instance;
 }
 
-void Matcher::add(UserMatchInfo *user) {
+ErrorCodes Matcher::add(UserMatchInfo *user) {
+    UserMatchInfo *res = lookup(user->uid);
+    if (res != NULL) {
+        return ERR_MATCH_WAITING;
+    }
     
     // add user to the waiting list
     g_waiting_list_mtx.lock();
@@ -151,6 +155,8 @@ void Matcher::add(UserMatchInfo *user) {
     // send event to find match listener
     if (ev_async_pending(&_find_match_watcher) == false)
         ev_async_send(_p_loop, &_find_match_watcher);
+    
+    return ERR_SUCCESS;
 }
 
 void Matcher::remove(UserMatchInfo *user) {
@@ -167,8 +173,8 @@ void Matcher::remove(UserMatchInfo *user) {
 }
 
 UserMatchInfo *Matcher::lookup(uint64_t uid) {
-    UserMatchInfo *ret;
-    ret->uid = 0;
+    UserMatchInfo *ret = NULL;
+    
     g_waiting_list_mtx.lock();
     for (int i = 0; i < _waiting_matches.size(); i++) {
         if (_waiting_matches[i]->uid == uid) {
@@ -183,9 +189,11 @@ UserMatchInfo *Matcher::lookup(uint64_t uid) {
 
 void Matcher::timeout_func(uint64_t uid) {
     UserMatchInfo *user = Matcher::get_instance()->lookup(uid);
+    if (user == NULL)
+        return;
+    
     int socket = user->socket;
-    if (user->uid != 0)
-        Matcher::get_instance()->remove(user);
+    Matcher::get_instance()->remove(user);
     
     char data = ERR_REQ_MATCH_FAIL;
     Requests::send_notification_async(socket, REQ_ERROR, string(&data));

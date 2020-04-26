@@ -27,7 +27,8 @@ typedef enum{
     ERR_GAME_NOT_FOUND,             // 20
     ERR_GAME_WRONG_PACKET,          // 21
     ERR_LOGIN_ALREADY_LOGGED_IN,    // 22
-    ERR_GAME_ALREADY_ANSWERED       // 23
+    ERR_GAME_ALREADY_ANSWERED,      // 23
+    ERR_MATCH_WAITING               // 24
 }ErrorCodes;
 
 typedef enum {

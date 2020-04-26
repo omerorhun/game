@@ -89,7 +89,7 @@ class Requests {
   bool add_data(uint8_t *data, uint16_t len);
   
   // match
-  void add_to_match_queue(UserMatchInfo *user);
+  ErrorCodes add_to_match_queue(UserMatchInfo *user);
   void remove_from_match_queue(UserMatchInfo *user);
   void cancel_match(uint64_t uid);
   

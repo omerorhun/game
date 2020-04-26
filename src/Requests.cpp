@@ -38,7 +38,7 @@ void Requests::send_response() {
         mlog.log_debug("notifications sending... (%d)", (int)_notifications.size());
     }
     useconds_t usec = 500000;
-    usleep(usec);
+    //usleep(usec);
     
     // send notifications that relevant with this request
     while (_notifications.size() != 0) {
@@ -47,7 +47,7 @@ void Requests::send_response() {
         _notifications.front().packet.send_packet(_notifications.front().socket);
         _notifications.pop();
         mlog.log_debug("2remaining notification: %d", _notifications.size());
-        usleep(usec);
+        //usleep(usec);
     }
 }
 
@@ -235,7 +235,11 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         user->timer.set(MATCH_TIMEOUT, uid);
         user->timer.start();
         
-        add_to_match_queue(user);
+        ret = add_to_match_queue(user);
+        if (ret != ERR_SUCCESS) {
+            // already added
+            goto L_ERROR;
+        }
         
         // 2- start a timer for match timeout
         time_t start_dt = time(0);
@@ -272,7 +276,7 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         // set acception for this client
         game->accept_game(uid);
         
-        set_request_code(REQ_GAME_ANSWER);
+        set_request_code(REQ_GAME_START);
         uint8_t data = ACK;
         add_data(&data, 1);
     }
@@ -389,7 +393,7 @@ void Requests::send_notification_async(int socket, RequestCodes req_code, string
     packet.set_request_code(req_code);
     packet.add_data(data);
     packet.set_crc();
-    usleep(500000); // 500ms delay, temporary
+    //usleep(500000); // 500ms delay, temporary
     packet.send_packet(socket);
 }
 
@@ -468,8 +472,8 @@ void Requests::logout(uint64_t uid) {
     Server::get_instance()->logout(uid);
 }
 
-void Requests::add_to_match_queue(UserMatchInfo *user) {
-    Matcher::get_instance()->add(user);
+ErrorCodes Requests::add_to_match_queue(UserMatchInfo *user) {
+    return Matcher::get_instance()->add(user);
 }
 
 void Requests::remove_from_match_queue(UserMatchInfo *user) {
@@ -478,7 +482,7 @@ void Requests::remove_from_match_queue(UserMatchInfo *user) {
 
 void Requests::cancel_match(uint64_t uid) {
     UserMatchInfo *user = Matcher::get_instance()->lookup(uid);
-    if (user->uid != 0)
+    if (user != NULL)
         Matcher::get_instance()->remove(user);
 }
 

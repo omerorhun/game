@@ -3,3 +3,4 @@ srv@srvfcontest.com
 *.o
 *.json
 core
+server

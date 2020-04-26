@@ -8,6 +8,7 @@
 #include <ev.h>
 #include "Timer.h"
 #include "constants.h"
+#include "errors.h"
 
 typedef struct {
     uint64_t uid;
@@ -23,7 +24,7 @@ typedef struct {
 class Matcher {
     public:
     Matcher();
-    void add(UserMatchInfo *user);
+    ErrorCodes add(UserMatchInfo *user);
     void remove(UserMatchInfo *user);
     UserMatchInfo *lookup(uint64_t uid);
     void start_loop(struct ev_loop *loop);
