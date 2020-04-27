@@ -13,7 +13,7 @@
 
 using namespace std;
 
-mutex mtx_db;
+mutex g_sql_mtx;
 
 RegistryDAO *RegistryDAO::_ps_instance = NULL;
 
@@ -33,7 +33,7 @@ RegistryDAO *RegistryDAO::get_instance(sql::Connection *conn) {
 }
 
 void RegistryDAO::insert(RegistryInfo user_info) {
-    mtx_db.lock();
+    g_sql_mtx.lock();
     sql::SQLString query = "INSERT INTO Users (fb_id, name, picture) VALUES (?,?,?)";
     sql::PreparedStatement *pstmt = _conn->prepareStatement(query);
     
@@ -44,11 +44,11 @@ void RegistryDAO::insert(RegistryInfo user_info) {
     pstmt->execute();
     
     delete pstmt;
-    mtx_db.unlock();
+    g_sql_mtx.unlock();
 }
 
 RegistryInfo RegistryDAO::get_user_by_uid(uint64_t uid) {
-    mtx_db.lock();
+    g_sql_mtx.lock();
     sql::SQLString query = "SELECT * FROM Users WHERE id = (?)";
     sql::PreparedStatement *pstmt = _conn->prepareStatement(query);
     pstmt->setUInt64(1, uid);
@@ -64,12 +64,12 @@ RegistryInfo RegistryDAO::get_user_by_uid(uint64_t uid) {
     
     delete res;
     delete pstmt;
-    mtx_db.unlock();
+    g_sql_mtx.unlock();
     return reg_info;
 }
 
 bool RegistryDAO::check_registry_by_uid(uint64_t uid) {
-    mtx_db.lock();
+    g_sql_mtx.lock();
     bool ret = false;
     sql::SQLString query = "SELECT EXISTS(SELECT * FROM Users WHERE id = (?)";
     sql::PreparedStatement *pstmt = _conn->prepareStatement(query);
@@ -84,12 +84,12 @@ bool RegistryDAO::check_registry_by_uid(uint64_t uid) {
     
     delete res;
     delete pstmt;
-    mtx_db.unlock();
+    g_sql_mtx.unlock();
     return ret;
 }
 
 RegistryInfo RegistryDAO::get_user_by_fb_id(uint64_t fb_id) {
-    mtx_db.lock();
+    g_sql_mtx.lock();
     RegistryInfo ret;
     sql::SQLString query = "SELECT * FROM Users WHERE fb_id = (?)";
     sql::PreparedStatement *pstmt = _conn->prepareStatement(query);
@@ -105,12 +105,12 @@ RegistryInfo RegistryDAO::get_user_by_fb_id(uint64_t fb_id) {
     
     delete res;
     delete pstmt;
-    mtx_db.unlock();
+    g_sql_mtx.unlock();
     return ret;
 }
 
 bool RegistryDAO::check_registry_by_fb_id(uint64_t fb_id) {
-    mtx_db.lock();
+    g_sql_mtx.lock();
     bool ret = false;
     sql::SQLString query = "SELECT EXISTS(SELECT * FROM Users WHERE fb_id = (?))";
     sql::PreparedStatement *pstmt = _conn->prepareStatement(query);
@@ -125,10 +125,6 @@ bool RegistryDAO::check_registry_by_fb_id(uint64_t fb_id) {
     
     delete res;
     delete pstmt;
-    mtx_db.unlock();
+    g_sql_mtx.unlock();
     return ret;
-}
-
-void RegistryDAO::removeUser(uint64_t uid) {
-    
 }

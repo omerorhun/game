@@ -14,6 +14,7 @@ GameDAL::GameDAL() {
         _driver = get_driver_instance();
         _conn = _driver->connect(DATABASE_HOSTNAME, DATABASE_USERNAME, DATABASE_PASSWORD);
         _p_reg_dao = RegistryDAO::get_instance(_conn);
+        _p_que_dao = QuestionsDAO::get_instance(_conn);
         _conn->setSchema(DATABASE_NAME);
     }
 }
@@ -46,4 +47,6 @@ bool GameDAL::check_registry_by_uid(uint64_t uid) {
     return _p_reg_dao->check_registry_by_uid(uid);
 }
 
-
+QuestionInfo GameDAL::get_question_by_id(uint64_t question_id) {
+    return _p_que_dao->get_question_by_id(question_id);
+}

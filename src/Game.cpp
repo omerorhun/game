@@ -34,7 +34,7 @@ GameUser Game::get_opponent(uint64_t uid) {
     return _rivals.user1;
 }
 
-void Game::accept_game(uint64_t uid) {
+bool Game::accept_game(uint64_t uid) {
     if (_rivals.user1.uid == uid) {
         _rivals.user1.accept = true;
     }
@@ -44,10 +44,10 @@ void Game::accept_game(uint64_t uid) {
     
     if (_rivals.user1.accept && _rivals.user2.accept) {
         _state = GAME_RIVALS_READY;
-        
-        // start game
-        start_game();
+        return true;
     }
+    
+    return false;
 }
 
 ErrorCodes Game::is_ready(time_t start, bool is_blocking) {
@@ -80,15 +80,9 @@ void Game::start_game() {
     
     set_timer();
     start_timer();
-    
-    Requests::send_notification_async(_rivals.user1.socket, REQ_GAME_ACCEPTED, _questions);
-    Requests::send_notification_async(_rivals.user2.socket, REQ_GAME_ACCEPTED, _questions);
 }
 
 string Game::get_questions() {
-    // TODO: add timeout
-    while (_state != GAME_QUESTIONS_READY);
-    
     return _questions;
 }
 
@@ -155,6 +149,8 @@ void Game::set_answer(uint64_t uid) {
 void Game::resign(uint64_t uid) {
     if (_rivals.user1.uid == uid) {
         _rivals.user1.is_resigned = true;
+        
+        stop_timer();
         
         // send opponent resigned notification to the opponent
         Requests::send_notification_async(_rivals.user2.socket, REQ_GAME_OPPONENT_RESIGNED, "");

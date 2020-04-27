@@ -34,7 +34,7 @@ class Game {
     Game(int game_id, Rivals rivals);
     int get_game_id();
     Rivals get_rivals();
-    void accept_game(uint64_t uid);
+    bool accept_game(uint64_t uid);
     ErrorCodes is_ready(time_t start, bool is_blocking);
     void start_game();
     std::string get_questions();

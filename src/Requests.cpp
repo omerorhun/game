@@ -265,7 +265,6 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
     }
     else if(req_code == REQ_GAME_START) {
         // get game id from indata
-        
         Game *game = GameService::get_instance()->lookup(uid);
         
         if (game == NULL) {
@@ -274,7 +273,15 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         }
         
         // set acception for this client
-        game->accept_game(uid);
+        if (game->accept_game(uid)) {
+            game->start_game();
+            
+            GameUser op = game->get_opponent(uid);
+            string questions = game->get_questions();
+            
+            add_notification(socket, REQ_GAME_ACCEPTED, questions);
+            add_notification(op.socket, REQ_GAME_ACCEPTED, questions);
+        }
         
         set_request_code(REQ_GAME_START);
         uint8_t data = ACK;
@@ -330,7 +337,6 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
             game->start_timer();
             mlog.log_debug("timer started");
         }
-        
         
         // send ack to this user
         set_request_code(REQ_GAME_ANSWER);
