@@ -12,7 +12,7 @@ class Questions {
     static Questions *get_instance();
     
     Questions();
-    std::string get_question(int count);
+    std::string get_question(int count, uint8_t type);
     
     private:
     static Questions *_ps_instance;

@@ -13,7 +13,7 @@
 typedef struct {
     uint64_t uid;
     int socket;
-    Timer timer;
+    time_t start_time;
 }UserMatchInfo;
 
 typedef struct {
@@ -24,25 +24,30 @@ typedef struct {
 class Matcher {
     public:
     Matcher();
+    ~Matcher();
     ErrorCodes add(UserMatchInfo *user);
     void remove(UserMatchInfo *user);
     UserMatchInfo *lookup(uint64_t uid);
-    void start_loop(struct ev_loop *loop);
-
-    static Matcher *_p_instance;
-    static Matcher *get_instance();
-    std::thread *_p_matcher_thread;
     
-    static void timeout_func(uint64_t uid);
+    
+    static Matcher *get_instance();
+    
+    void timeout_func(uint64_t uid);
     
     private:
-    static struct ev_loop *_p_loop;
-    static ev_async _find_match_watcher;
-    static ev_async _create_game_watcher;
-    static std::vector<UserMatchInfo *> _waiting_matches;
-    static std::vector<MatchResult> _match_results;
+    static Matcher *_p_instance;
+    std::thread *_p_matcher_thread;
+    std::thread *_p_watchdog_thread;
+    
+    struct ev_loop *_p_loop;
+    ev_async _find_match_watcher;
+    ev_async _create_game_watcher;
+    std::vector<UserMatchInfo *> _waiting_matches;
+    std::vector<MatchResult> _match_results;
     static void find_match_cb(struct ev_loop *loop, ev_async *watcher, int revents);
     static void match_cb(struct ev_loop *loop, ev_async *watcher, int revents);
+    void start_loop(struct ev_loop *loop);
+    void watchdog();
 };
 
 #endif // _MATCHER_H_

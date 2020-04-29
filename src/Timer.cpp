@@ -5,40 +5,41 @@
 
 using namespace std;
 
-Timer::Timer() {
+template <typename __OBJ>
+Timer<__OBJ>::Timer() {
     _start_dt = 0;
     _timeout = 0;
     _is_active = false;
     _thread = NULL;
-    _p_func = NULL;
-    _uid_match = 0;
-    _game = NULL;
+    _p_callback = NULL;
+    _obj = NULL;
 }
 
-Timer::Timer(const Timer &obj) {
+template <typename __OBJ>
+Timer<__OBJ>::Timer(const Timer &obj) {
     _start_dt = 0;
     _timeout = 0;
     _is_active = false;
     _thread = NULL;
-    _p_func = NULL;
-    _uid_match = 0;
-    _game = NULL;
+    _p_callback = NULL;
+    _obj = NULL;
 }
 
-Timer Timer::operator=(const Timer &obj) {
+template <typename __OBJ>
+Timer<__OBJ> Timer<__OBJ>::operator=(const Timer<__OBJ> &obj) {
     Timer timer;
     timer._start_dt = 0;
     timer._timeout = 0;
     timer._is_active = false;
     timer._thread = NULL;
-    timer._p_func = NULL;
-    timer._uid_match = 0;
-    timer._game = NULL;
+    timer._p_callback = NULL;
+    timer._obj = NULL;
     
     return timer;
 }
 
-Timer::~Timer() {
+template <typename __OBJ>
+Timer<__OBJ>::~Timer() {
     if (_thread != NULL) {
         stop();
         delete _thread;
@@ -46,20 +47,17 @@ Timer::~Timer() {
     }
 }
 
-void Timer::set(time_t sec, void *game) {
+template <typename __OBJ>
+void Timer<__OBJ>::set(time_t sec, __OBJ *obj, void (__OBJ::*pfunc)()) {
     _thread = new thread();
     _timeout = sec;
-    _game = game;
+    _obj = obj;
+    _p_callback = pfunc;
 }
 
-void Timer::set(time_t sec, uint64_t uid) {
-    _thread = new thread();
-    _timeout = sec;
-    _uid_match = uid;
-}
-
-void Timer::start() {
-    if ((_game == NULL) && (_uid_match == 0))
+template <typename __OBJ>
+void Timer<__OBJ>::start() {
+    if (_obj == NULL)
         return;
     
     _start_dt = time(NULL);
@@ -67,7 +65,8 @@ void Timer::start() {
     *_thread = thread(&Timer::loop, this);
 }
 
-void Timer::stop() {
+template <typename __OBJ>
+void Timer<__OBJ>::stop() {
     if (!_is_active)
         return;
     
@@ -75,24 +74,23 @@ void Timer::stop() {
     _thread->detach();
 }
 
-void Timer::loop() {
+template <typename __OBJ>
+void Timer<__OBJ>::loop() {
     while (time(NULL) < (_start_dt + _timeout)) {
         if (!_is_active) {
             return;
         }
     }
     
-    if (_game != NULL)
-        ((Game *)_game)->timeout_func(NULL);
-    
-    if (_uid_match != 0) {
-        Matcher::timeout_func(_uid_match);
-    }
+    (_obj->*_p_callback)();
 }
 
-time_t Timer::check() {
+template <typename __OBJ>
+time_t Timer<__OBJ>::check() {
     if (!_is_active)
         return 0;
     
     return _start_dt + _timeout - time(NULL);
 }
+
+template class Timer<Game>;

@@ -19,6 +19,7 @@ typedef struct {
     uint64_t uid;
     int socket;
     bool accept = false;
+    uint8_t category;
     bool is_resigned = false;
     bool is_answered = false;
 }GameUser;
@@ -32,21 +33,26 @@ class Game {
     public:
     Game();
     Game(int game_id, Rivals rivals);
+    
+    void start_game();
+    bool accept_game(uint64_t uid);
+    void resign(uint64_t uid);
+    
     int get_game_id();
     Rivals get_rivals();
-    bool accept_game(uint64_t uid);
-    ErrorCodes is_ready(time_t start, bool is_blocking);
-    void start_game();
+    
+    void set_category(uint64_t uid, uint8_t category);
     std::string get_questions();
-    time_t get_start_dt();
     GameUser get_opponent(uint64_t uid);
     
     void set_answer(uint64_t uid);
+    ErrorCodes check_answer(std::string answer);
     bool is_answered(uint64_t uid);
-    void resign(uint64_t uid);
     
-    void timeout_func(void *arg);
+    bool next_question();
     
+    // timer
+    void timeout_func();
     void set_timer();
     void start_timer();
     void stop_timer();
@@ -54,9 +60,10 @@ class Game {
     
     private:
     int _game_uid;
-    time_t _start_dt;
     Rivals _rivals;
-    Timer _timer;
+    uint8_t _current_tour;
+    uint8_t _current_question;
+    Timer<Game> _timer;
     GameState _state;
     std::string _questions;
 };

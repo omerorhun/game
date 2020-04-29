@@ -14,7 +14,7 @@ class GameService {
         GameService();
         static GameService *get_instance();
         
-        int create_game(Rivals rivals);
+        Game *create_game(Rivals rivals);
         ErrorCodes accept_game(int game_id, uint64_t uid);
         ErrorCodes start_game(int game_id);
         ErrorCodes finish_game_with_uid(uint64_t uid);

@@ -5,17 +5,18 @@
 #include "Questions.h"
 #include "Requests.h"
 #include "debug.h"
+#include "json.hpp"
 
 using namespace std;
 
 #define GAME_TIMEOUT 30
 
 Game::Game(int game_id, Rivals rivals) {
-    _start_dt = 0;
     _game_uid = game_id;
     _rivals.user1 = rivals.user1;
     _rivals.user2 = rivals.user2;
     _state = GAME_WAITING_FOR_ACCEPTIONS;
+    _current_tour = 0;
 }
 
 int Game::get_game_id() {
@@ -37,9 +38,11 @@ GameUser Game::get_opponent(uint64_t uid) {
 bool Game::accept_game(uint64_t uid) {
     if (_rivals.user1.uid == uid) {
         _rivals.user1.accept = true;
+        _rivals.user1.is_answered= true;
     }
     else if (_rivals.user2.uid == uid) {
         _rivals.user2.accept = true;
+        _rivals.user2.is_answered= true;
     }
     
     if (_rivals.user1.accept && _rivals.user2.accept) {
@@ -50,32 +53,19 @@ bool Game::accept_game(uint64_t uid) {
     return false;
 }
 
-ErrorCodes Game::is_ready(time_t start, bool is_blocking) {
-    if (!is_blocking) {
-        if (_state == GAME_RIVALS_READY)
-            return ERR_SUCCESS;
-        
-        return ERR_GAME_START_FAIL;
-    }
-    
-    while(_state != GAME_RIVALS_READY) {
-        // wait
-        if (time(NULL) > (start + GAME_START_TIMEOUT)) {
-            return ERR_GAME_START_TIMEOUT;
-        }
-    }
-    
-    return ERR_SUCCESS;
-}
-
-time_t Game::get_start_dt() {
-    return _start_dt;
-}
-
 void Game::start_game() {
     // get questions from db
-    _questions = Questions::get_instance()->get_question(5);
-    _start_dt = time(0);
+    string tour1 = Questions::get_instance()->get_question(5, _rivals.user1.category);
+    string tour2 = Questions::get_instance()->get_question(5, _rivals.user2.category);
+    string tour3 = Questions::get_instance()->get_question(5, 0);
+    
+    nlohmann::json temp;
+    temp["tour1"].push_back(tour1);
+    temp["tour2"].push_back(tour2);
+    temp["tour3"].push_back(tour3);
+    
+    _questions = temp.dump();
+    
     _state = GAME_QUESTIONS_READY;
     
     set_timer();
@@ -86,7 +76,16 @@ string Game::get_questions() {
     return _questions;
 }
 
-void Game::timeout_func(void *arg) {
+void Game::set_category(uint64_t uid, uint8_t category) {
+    if (_rivals.user1.uid == uid) {
+        _rivals.user1.category = category;
+    }
+    else {
+        _rivals.user2.category = category;
+    }
+}
+
+void Game::timeout_func() {
     // mark user as 'timed out'
     mlog.log_debug("timeout func");
     
@@ -116,7 +115,7 @@ void Game::timeout_func(void *arg) {
 }
 
 void Game::set_timer() {
-    _timer.set(GAME_TIMEOUT, this);
+    _timer.set(GAME_TIMEOUT, this, &Game::timeout_func);
 }
 
 void Game::start_timer() {
@@ -168,4 +167,29 @@ bool Game::is_answered(uint64_t uid) {
         return _rivals.user1.is_answered;
     
     return _rivals.user2.is_answered;
+}
+
+ErrorCodes Game::check_answer(string data) {
+    nlohmann::json answer_json;
+    if (!nlohmann::json::accept(data)) {
+        return ERR_GAME_WRONG_PACKET;
+    }
+    
+    answer_json = nlohmann::json::parse(data);
+    if (answer_json.find("answer") == answer_json.end()) {
+        return ERR_GAME_WRONG_PACKET;
+    }
+    
+    return ERR_SUCCESS;
+}
+
+bool Game::next_question() {
+    _current_question++;
+    if (_current_question == 5) {
+        _current_tour++;
+        _current_question = 0;
+        return true;
+    }
+    
+    return false;
 }

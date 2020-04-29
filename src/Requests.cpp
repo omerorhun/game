@@ -232,17 +232,13 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         UserMatchInfo *user = new UserMatchInfo();
         user->uid = uid;
         user->socket = socket;
-        user->timer.set(MATCH_TIMEOUT, uid);
-        user->timer.start();
+        user->start_time = time(NULL);
         
         ret = add_to_match_queue(user);
         if (ret != ERR_SUCCESS) {
             // already added
             goto L_ERROR;
         }
-        
-        // 2- start a timer for match timeout
-        time_t start_dt = time(0);
         
         set_request_code(REQ_MATCH);
         // send ack
@@ -272,8 +268,14 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
             goto L_ERROR;
         }
         
+        // set this users category
+        uint8_t category = indata[0];
+        game->set_category(uid, category);
+        
         // set acception for this client
         if (game->accept_game(uid)) {
+            game->stop_timer();
+            
             game->start_game();
             
             GameUser op = game->get_opponent(uid);
@@ -287,35 +289,41 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         uint8_t data = ACK;
         add_data(&data, 1);
     }
+    else if (req_code == REQ_GAME_START) {
+        
+        
+    }
     else if (req_code == REQ_GAME_ANSWER) {
         // check if game exists
         Game *game = GameService::get_instance()->lookup(uid);
         if (game == NULL) {
             ret = ERR_GAME_NOT_FOUND;
+            mlog.log_error("game not found error");
             goto L_ERROR;
         }
         
         if (game->is_answered(uid)) {
             ret = ERR_GAME_ALREADY_ANSWERED;
+            mlog.log_error("game already answered error");
+            goto L_ERROR;
+        }
+        
+        // check data and get answer
+        ret = game->check_answer(indata);
+        if (ret != ERR_SUCCESS) {
+            // wrong packet
+            mlog.log_error("check answer error: %d", ret);
             goto L_ERROR;
         }
         
         // TEST: set as answered this user
         game->set_answer(uid);
         
-        // check data and get answer
-        string answer;
-        ErrorCodes ret = get_game_answer(indata, answer);
-        if (ret != ERR_SUCCESS) {
-            // wrong packet
-            goto L_ERROR;
-        }
-        
         GameUser op = game->get_opponent(uid);
         
         // add game answer request to the queue for the opponent user
         mlog.log_debug("op.socket: %d", op.socket);
-        add_notification(op.socket, REQ_GAME_OPPONENT_ANSWER, answer);
+        add_notification(op.socket, REQ_GAME_OPPONENT_ANSWER, indata);
         mlog.log_debug("notification added");
         
         mlog.log_debug("check timer: %ld", game->check_timer());
@@ -404,20 +412,7 @@ void Requests::send_notification_async(int socket, RequestCodes req_code, string
 }
 
 ErrorCodes Requests::get_game_answer(string data, string &answer) {
-    nlohmann::json answer_json;
-    if (!nlohmann::json::accept(data)) {
-        return ERR_GAME_WRONG_PACKET;
-    }
     
-    answer_json = nlohmann::json::parse(data);
-    if (answer_json.find("answer") == answer_json.end()) {
-        return ERR_GAME_WRONG_PACKET;
-    }
-    
-    // TODO: not need to copy. can be used the 'data' object
-    answer = data;
-    
-    return ERR_SUCCESS;
 }
 
 void Requests::prepare_error_packet(ErrorCodes err) {
@@ -479,6 +474,7 @@ void Requests::logout(uint64_t uid) {
 }
 
 ErrorCodes Requests::add_to_match_queue(UserMatchInfo *user) {
+    
     return Matcher::get_instance()->add(user);
 }
 
@@ -492,7 +488,7 @@ void Requests::cancel_match(uint64_t uid) {
         Matcher::get_instance()->remove(user);
 }
 
-int Requests::create_game(Rivals rivals) {
+Game *Requests::create_game(Rivals rivals) {
     return GameService::get_instance()->create_game(rivals);
 }
 

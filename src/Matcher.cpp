@@ -15,15 +15,16 @@
 using namespace std;
 
 Matcher *Matcher::_p_instance = NULL;
-vector<UserMatchInfo *> Matcher::_waiting_matches;
-vector<MatchResult> Matcher::_match_results;
-
-struct ev_loop *Matcher::_p_loop;
-ev_async Matcher::_create_game_watcher;
-ev_async Matcher::_find_match_watcher;
+// vector<UserMatchInfo *> Matcher::_waiting_matches;
+// vector<MatchResult> Matcher::_match_results;
+// struct ev_loop *Matcher::_p_loop;
+// ev_async Matcher::_create_game_watcher;
+// ev_async Matcher::_find_match_watcher;
 
 mutex g_waiting_list_mtx;
 mutex g_match_result_mtx;
+
+Matcher *matcher = Matcher::get_instance();
 
 Matcher::Matcher() {
     if (_p_instance == NULL) {
@@ -41,45 +42,52 @@ Matcher::Matcher() {
         
         // start main event listener
         _p_matcher_thread = new thread(&Matcher::start_loop, this, _p_loop);
+        _p_watchdog_thread = new thread(&Matcher::watchdog, this);
     }
 }
 
+Matcher::~Matcher() {
+    _p_matcher_thread->detach();
+    _p_watchdog_thread->detach();
+    
+    delete _p_matcher_thread;
+    delete _p_watchdog_thread;
+}
+
 void Matcher::find_match_cb(struct ev_loop *loop, ev_async *watcher, int revents) {
-    int remaining = _waiting_matches.size();
+    
+    int remaining = matcher->_waiting_matches.size();
     
     mlog.log_debug("remaining: %d", remaining);
-    while (_waiting_matches.size() > 1) {
+    while (matcher->_waiting_matches.size() > 1) {
         g_waiting_list_mtx.lock();
         
         // some users could be canceled their match requests
-        if ((remaining = _waiting_matches.size()) <= 1)
+        if ((remaining = matcher->_waiting_matches.size()) <= 1)
             break;
         
         // find random opponent here
         int op_idx = rand()%(remaining - 1) + 1;
         
-        _waiting_matches[0]->timer.stop();
-        _waiting_matches[op_idx]->timer.stop();
-        
         MatchResult result;
-        result.user1 = *_waiting_matches[0];
-        result.user2 = *_waiting_matches[op_idx];
+        result.user1 = *matcher->_waiting_matches[0];
+        result.user2 = *matcher->_waiting_matches[op_idx];
         
-        delete _waiting_matches[0];
-        delete _waiting_matches[op_idx];
+        delete matcher->_waiting_matches[0];
+        delete matcher->_waiting_matches[op_idx];
         
         g_match_result_mtx.lock();
-        _match_results.push_back(result);
+        matcher->_match_results.push_back(result);
         g_match_result_mtx.unlock();
         
         // first, remove opponent's uid from the list
-        _waiting_matches.erase(_waiting_matches.begin() + op_idx);
+        matcher->_waiting_matches.erase(matcher->_waiting_matches.begin() + op_idx);
         
         // then, remove this uid from the list
-        _waiting_matches.erase(_waiting_matches.begin());
+        matcher->_waiting_matches.erase(matcher->_waiting_matches.begin());
         
-        if (ev_async_pending(&_create_game_watcher) == false)
-            ev_async_send(_p_loop, &_create_game_watcher);
+        if (ev_async_pending(&matcher->_create_game_watcher) == false)
+            ev_async_send(matcher->_p_loop, &matcher->_create_game_watcher);
         
         g_waiting_list_mtx.unlock();
     }
@@ -90,12 +98,11 @@ void Matcher::match_cb(struct ev_loop *loop, ev_async *watcher, int revents) {
     
     g_match_result_mtx.lock();
     
-    result = _match_results.back();
-    _match_results.pop_back();
+    result = matcher->_match_results.back();
+    matcher->_match_results.pop_back();
     g_match_result_mtx.unlock();
     
     // create new game
-    int game_id = 0;
     Rivals riv;
     riv.user1.uid = result.user1.uid;
     riv.user1.socket = result.user1.socket;
@@ -103,8 +110,11 @@ void Matcher::match_cb(struct ev_loop *loop, ev_async *watcher, int revents) {
     riv.user2.uid = result.user2.uid;
     riv.user2.socket = result.user2.socket;
     riv.user2.accept = false;
-    game_id = GameService::get_instance()->create_game(riv);
+    Game *game = GameService::get_instance()->create_game(riv);
     // is game id must be saved?
+    
+    game->set_timer();
+    game->start_timer();
     
     // match success
     mlog.log_debug("%lu matched with %lu", result.user1.uid, result.user2.uid);
@@ -118,13 +128,13 @@ void Matcher::match_cb(struct ev_loop *loop, ev_async *watcher, int revents) {
     user1_json["fb_id"] = user1_info.fb_id;
     user1_json["name"] = user1_info.name;
     user1_json["url"] = user1_info.picture_url;
-    user1_json["game_id"] = game_id;
+    user1_json["game_id"] = game->get_game_id();
     
     user2_json["id"] = user2_info.uid;
     user2_json["fb_id"] = user2_info.fb_id;
     user2_json["name"] = user2_info.name;
     user2_json["url"] = user2_info.picture_url;
-    user2_json["game_id"] = game_id;
+    user2_json["game_id"] = game->get_game_id();
     
     Requests::send_notification_async(riv.user1.socket, REQ_MATCH, user2_json.dump());
     Requests::send_notification_async(riv.user2.socket, REQ_MATCH, user1_json.dump());
@@ -136,6 +146,10 @@ void Matcher::start_loop(struct ev_loop *loop) {
 }
 
 Matcher *Matcher::get_instance() {
+    if (_p_instance == NULL) {
+        _p_instance = new Matcher();
+    }
+    
     return _p_instance;
 }
 
@@ -147,9 +161,7 @@ ErrorCodes Matcher::add(UserMatchInfo *user) {
     
     // add user to the waiting list
     g_waiting_list_mtx.lock();
-    mlog.log_debug("adding to queue");
     _waiting_matches.push_back(user);
-    
     g_waiting_list_mtx.unlock();
     
     // send event to find match listener
@@ -160,29 +172,24 @@ ErrorCodes Matcher::add(UserMatchInfo *user) {
 }
 
 void Matcher::remove(UserMatchInfo *user) {
-    g_waiting_list_mtx.lock();
     //auto it = find(_waiting_matches.begin(), _waiting_matches.end(), user);
-    for (int i = 0; i < _waiting_matches.size(); i++) {
-        if (_waiting_matches[i]->uid == user->uid) {
-            _waiting_matches.erase(_waiting_matches.begin() + i);
+    for (auto it = _waiting_matches.begin(); it != _waiting_matches.end(); it++) {
+        if ((*it)->uid == user->uid) {
+            _waiting_matches.erase(it);
             break;
         }
     }
-    
-    g_waiting_list_mtx.unlock();
 }
 
 UserMatchInfo *Matcher::lookup(uint64_t uid) {
     UserMatchInfo *ret = NULL;
     
-    g_waiting_list_mtx.lock();
-    for (int i = 0; i < _waiting_matches.size(); i++) {
-        if (_waiting_matches[i]->uid == uid) {
-            ret = _waiting_matches[i];
+    for (auto it : _waiting_matches) {
+        if (it->uid == uid) {
+            ret = it;
             break;
         }
     }
-    g_waiting_list_mtx.unlock();
     
     return ret;
 }
@@ -193,8 +200,32 @@ void Matcher::timeout_func(uint64_t uid) {
         return;
     
     int socket = user->socket;
+    mlog.log_debug("remove user from match");
     Matcher::get_instance()->remove(user);
+    mlog.log_debug("removed user from match");
     
     char data = ERR_REQ_MATCH_FAIL;
+    
+    mlog.log_debug("async notification sending");
+    mlog.log_debug("socket: %d", socket);
     Requests::send_notification_async(socket, REQ_ERROR, string(&data));
+    mlog.log_debug("async notification sent");
+}
+
+void Matcher::watchdog() {
+    
+    while (1) {
+        mlog.log_debug("watchdog loop");
+        for (auto it = _waiting_matches.begin(); it < _waiting_matches.end(); it++) {
+            g_waiting_list_mtx.lock();
+            if (time(NULL) > ((*it)->start_time + MATCH_TIMEOUT)) {
+                mlog.log_debug("%ld - %ld - %ld", (*it)->start_time, MATCH_TIMEOUT, time(NULL));
+                mlog.log_debug("match timeout");
+                timeout_func((*it)->uid);
+            }
+            g_waiting_list_mtx.unlock();
+        }
+        mlog.log_debug("watchdog loop end");
+        sleep(15);
+    }
 }

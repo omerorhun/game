@@ -24,18 +24,16 @@ GameService *GameService::get_instance() {
     return _ps_instance;
 }
 
-int GameService::create_game(Rivals rivals) {
+Game *GameService::create_game(Rivals rivals) {
     mlog.log_info("create game");
     
     mlog.log_debug("%lu - %lu", rivals.user1.uid, rivals.user2.uid);
-    int game_id = 0;
     
     // if not create new game
     Game game(_s_game_count + 1, rivals);
     _games.push_back(game);
-    game_id = _games[_s_game_count++].get_game_id();
     
-    return game_id;
+    return &_games[_s_game_count++];
 }
 
 ErrorCodes GameService::accept_game(int game_id, uint64_t uid) {

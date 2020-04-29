@@ -94,7 +94,7 @@ class Requests {
   void cancel_match(uint64_t uid);
   
   // game
-  int create_game(Rivals rivals);
+  Game *create_game(Rivals rivals);
   int get_socket(uint64_t op_uid);
   uint64_t get_uid(int socket);
   int get_game_id(uint64_t uid);

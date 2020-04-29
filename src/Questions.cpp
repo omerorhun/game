@@ -24,7 +24,7 @@ Questions *Questions::get_instance() {
     return _ps_instance;
 }
 
-string Questions::get_question(int count) {
+string Questions::get_question(int count, uint8_t type) {
     nlohmann::json ret;
     
     for (int i = 0; i < count; i++) {

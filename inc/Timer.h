@@ -3,8 +3,7 @@
 
 #include <thread>
 
-typedef void (*funcPtr)(void *arg);
-
+template <typename __OBJ>
 class Timer {
     public:
     Timer();
@@ -14,19 +13,19 @@ class Timer {
     
     void start();
     void stop();
-    //void set(time_t sec, funcPtr, void *arg);
-    void set(time_t sec, void *game);
-    void set(time_t sec, uint64_t uid);
+    
+    //void set(time_t sec, __OBJ *obj);
+    void set(time_t sec, __OBJ *obj, void (__OBJ::*pfunc)());
+    
     time_t check();
     
     private:
     time_t _start_dt;
     time_t _timeout;
     bool _is_active;
-    void *_game;
-    uint64_t _uid_match;
-    funcPtr _p_func;
-    void *_arg;
+    __OBJ *_obj;
+    void (__OBJ::*_p_callback)();
+    
     void loop();
     std::thread *_thread;
 };
