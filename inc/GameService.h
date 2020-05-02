@@ -20,7 +20,8 @@ class GameService {
         ErrorCodes finish_game_with_uid(uint64_t uid);
         ErrorCodes finish_game(int game_id);
         ErrorCodes remove_game(int game_id);
-        Game *lookup(uint64_t uid);
+        Game *lookup_by_uid(uint64_t uid);
+        Game *lookup(int game_id);
         int get_game_id(uint64_t uid);
         
     private:

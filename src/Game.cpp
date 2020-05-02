@@ -169,16 +169,43 @@ bool Game::is_answered(uint64_t uid) {
     return _rivals.user2.is_answered;
 }
 
-ErrorCodes Game::check_answer(string data) {
+ErrorCodes Game::check_game_request(RequestCodes req_code, string data) {
     nlohmann::json answer_json;
     if (!nlohmann::json::accept(data)) {
         return ERR_GAME_WRONG_PACKET;
     }
     
     answer_json = nlohmann::json::parse(data);
-    if (answer_json.find("answer") == answer_json.end()) {
-        return ERR_GAME_WRONG_PACKET;
+    
+    if (req_code == REQ_GAME_START) {
+        if (answer_json.find("game_id") == answer_json.end()) {
+            return ERR_GAME_WRONG_PACKET;
+        }
+        
+        if (answer_json.find("category") == answer_json.end()) {
+            return ERR_GAME_WRONG_PACKET;
+        }
     }
+    else if (req_code == REQ_GAME_ANSWER) {
+        if (answer_json.find("game_id") == answer_json.end()) {
+            return ERR_GAME_WRONG_PACKET;
+        }
+        
+        if (answer_json.find("answer") == answer_json.end()) {
+            return ERR_GAME_WRONG_PACKET;
+        }
+    }
+    else if (req_code == REQ_GAME_RESIGN) {
+        if (answer_json.find("game_id") == answer_json.end()) {
+            return ERR_GAME_WRONG_PACKET;
+        }
+    }
+    else if (req_code == REQ_GAME_FINISH) {
+        if (answer_json.find("game_id") == answer_json.end()) {
+            return ERR_GAME_WRONG_PACKET;
+        }
+    }
+    
     
     return ERR_SUCCESS;
 }

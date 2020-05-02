@@ -260,16 +260,24 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         add_data(&data, 1);
     }
     else if(req_code == REQ_GAME_START) {
-        // get game id from indata
-        Game *game = GameService::get_instance()->lookup(uid);
+        ret = Game::check_game_request(REQ_GAME_START, indata);
+        if (ret != ERR_SUCCESS) {
+            goto L_ERROR;
+        }
         
+        nlohmann::json data_json = nlohmann::json::parse(indata);
+        
+        int game_id = data_json["game_id"];
+        Game *game = game = GameService::get_instance()->lookup(game_id);
+        // get game id from indata
         if (game == NULL) {
             ret = ERR_GAME_NOT_MATCHED;
             goto L_ERROR;
         }
         
+        uint8_t category = data_json["category"];
+        
         // set this users category
-        uint8_t category = indata[0];
         game->set_category(uid, category);
         
         // set acception for this client
@@ -289,13 +297,20 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         uint8_t data = ACK;
         add_data(&data, 1);
     }
-    else if (req_code == REQ_GAME_START) {
-        
-        
-    }
     else if (req_code == REQ_GAME_ANSWER) {
+        // check data and get answer
+        ret = Game::check_game_request(REQ_GAME_ANSWER, indata);
+        if (ret != ERR_SUCCESS) {
+            // wrong packet
+            mlog.log_error("check answer error: %d", ret);
+            goto L_ERROR;
+        }
+        
+        nlohmann::json data_json = nlohmann::json::parse(indata);
+        int game_id = data_json["game_id"];
+        
         // check if game exists
-        Game *game = GameService::get_instance()->lookup(uid);
+        Game *game = GameService::get_instance()->lookup(game_id);
         if (game == NULL) {
             ret = ERR_GAME_NOT_FOUND;
             mlog.log_error("game not found error");
@@ -305,14 +320,6 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         if (game->is_answered(uid)) {
             ret = ERR_GAME_ALREADY_ANSWERED;
             mlog.log_error("game already answered error");
-            goto L_ERROR;
-        }
-        
-        // check data and get answer
-        ret = game->check_answer(indata);
-        if (ret != ERR_SUCCESS) {
-            // wrong packet
-            mlog.log_error("check answer error: %d", ret);
             goto L_ERROR;
         }
         
@@ -352,13 +359,20 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         add_data(&outdata, 1);
     }
     else if (req_code == REQ_GAME_RESIGN) {
-        Game *game = GameService::get_instance()->lookup(uid);
+        ret = Game::check_game_request(REQ_GAME_RESIGN, indata);
+        if (ret != ERR_SUCCESS) {
+            goto L_ERROR;
+        }
+        
+        nlohmann::json data_json = nlohmann::json::parse(indata);
+        
+        int game_id = data_json["game_id"];
+        Game *game = GameService::get_instance()->lookup(game_id);
+        
         if (game == NULL) {
             ret = ERR_GAME_NOT_FOUND;
             goto L_ERROR;
         }
-        
-        // TODO: check if game is active, no one resigned etc.
         
         // mark this user as resigned on game object
         game->resign(uid);
@@ -368,8 +382,16 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         add_data(&outdata, 1);
     }
     else if (req_code == REQ_GAME_FINISH) {
+        ret = Game::check_game_request(REQ_GAME_RESIGN, indata);
+        if (ret != ERR_SUCCESS) {
+            goto L_ERROR;
+        }
+        
+        nlohmann::json data_json = nlohmann::json::parse(indata);
+        
+        int game_id = data_json["game_id"];
+        Game *game = GameService::get_instance()->lookup(game_id);
         // release game object and its content (timer etc.)
-        Game *game = GameService::get_instance()->lookup(uid);
         if (game != NULL) {
             GameService::get_instance()->finish_game(game->get_game_id());
             mlog.log_debug("game finished");

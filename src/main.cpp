@@ -38,24 +38,14 @@ int main (int argc, char **argv) {
     
     get_args(argc, argv, &port);
     
-#if CPP_STYLE_LIBEV
-    ev::dynamic_loop loop;
-    Server server(loop);
-#else
     Server server(port);
-#endif
     RegistryService users;
     Matcher matcher;
     
     if (server.init_server() == -1)
         return -1;
-
-#if CPP_STYLE_LIBEV    
-    mlog.log_info("Waiting for clients...");
-    loop.run(0);
-#else
+    
     server.wait_clients();
-#endif
     
     return 0;
 }

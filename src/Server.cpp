@@ -16,21 +16,12 @@
 #include "debug.h"
 
 // for libev
-#if !CPP_STYLE_LIBEV
 struct ev_loop *Server::_ploop = NULL;
-#endif // !CPP_STYLE_LIBEV
 
 using namespace std;
 
 Server *Server::_ps_instance = NULL;
 
-#if CPP_STYLE_LIBEV
-Server::Server(ev::dynamic_loop &loop) {
-    _ps_instance = this;
-
-    _waccept.set(loop);
-}
-#else
 Server::Server() {
     if (_ps_instance == NULL) {
         _ps_instance = this;
@@ -51,8 +42,6 @@ Server::Server(int port) {
         _port = port;
     }
 }
-
-#endif // CPP_STYLE_LIBEV
 
 int Server::init_server() {
     int result = 0;
@@ -82,60 +71,13 @@ int Server::init_server() {
         return -1;
     }
     
-#if !CPP_STYLE_LIBEV
     _waccept.fd = _main_socket;
     ev_io_init(&_waccept, add_new_connection, _main_socket, EV_READ);
     ev_io_start(_ploop, &_waccept);
-#else
-    _waccept.set<Server, &Server::add_new_connection>(this);
-    _waccept.set(_main_socket, ev::READ);
-    _waccept.start();
-#endif // !CPP_STYLE_LIBEV
     
     mlog.log_info("init server end");
     return result;
 }
-
-#if CPP_STYLE_LIBEV
-// cpp style libev
-void Server::add_new_connection(ev::io &watcher, int revents) {
-    int client_socket;
-    sockaddr_in client_addr;
-    socklen_t client_len = sizeof(client_addr);
-    
-    if ((client_socket = accept(watcher.fd, (sockaddr *)&client_addr, &client_len)) == -1) {
-        // acception error
-        mlog.log_error("Error on accept");
-        close(client_socket);
-        return;
-    }
-    
-    mlog.log_debug("%s %d", __func__, client_socket);
-    
-    ev::io *w_client = (ev::io *)malloc(sizeof(ev::io));
-    mlog.log_debug("_waccept.loop: %p", &_waccept.loop);
-    w_client->set(_waccept.loop);
-    w_client->set<Server, &Server::handle_client>(this);
-    w_client->set(client_socket, ev::READ);
-    w_client->start();
-}
-
-void Server::handle_client(ev::io &watcher, int revents) {
-    Requests request(watcher.fd);
-    
-    mlog.log_debug("handle_client: %d", watcher.fd);
-    
-    ErrorCodes err = request.handle_request();
-    if (err == ERR_REQ_DISCONNECTED) {
-        // Close socket
-        close(watcher.fd);
-        
-        // stop io
-        watcher.stop();
-        free(&watcher);
-    }
-}
-#else
 
 void Server::add_new_connection(struct ev_loop *loop, struct ev_io *watcher, int revents) {
     int client_socket;
@@ -216,7 +158,6 @@ int Server::wait_clients() {
     
     return result;
 }
-#endif // CPP_STYLE_LIBEV
 
 Server *Server::get_instance() {
     return _ps_instance;

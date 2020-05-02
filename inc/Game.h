@@ -46,7 +46,7 @@ class Game {
     GameUser get_opponent(uint64_t uid);
     
     void set_answer(uint64_t uid);
-    ErrorCodes check_answer(std::string answer);
+    static ErrorCodes check_game_request(RequestCodes req_code, std::string answer);
     bool is_answered(uint64_t uid);
     
     bool next_question();
