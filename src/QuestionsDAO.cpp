@@ -42,8 +42,7 @@ QuestionInfo QuestionsDAO::get_question_by_id(uint64_t id) {
     pstmt->setUInt64(1, id);
     sql::ResultSet *res = pstmt->executeQuery();
     QuestionInfo question_info;
-    
-    
+    // "SELECT * FROM Questions WHERE category = 1 ORDER BY RAND() LIMIT 1"
     if (res->next()) {
         question_info.uid = res->getUInt64(COL_ID);
         question_info.question = res->getString(COL_QUESTION_TR);
@@ -60,3 +59,27 @@ QuestionInfo QuestionsDAO::get_question_by_id(uint64_t id) {
     return question_info;
 }
 
+QuestionInfo QuestionsDAO::get_random_question(uint8_t category) {
+    g_sql_mtx.lock();
+    sql::SQLString query = "SELECT * FROM Questions WHERE category = (?) ORDER BY RAND() LIMIT 1";
+    sql::PreparedStatement *pstmt = _conn->prepareStatement(query);
+    pstmt->setUInt(1, category);
+    sql::ResultSet *res = pstmt->executeQuery();
+    QuestionInfo question_info;
+    
+    if (res->next()) {
+        question_info.uid = res->getUInt64(COL_ID);
+        question_info.question = res->getString(COL_QUESTION_TR);
+        question_info.choice_a = res->getString(COL_CHOICE_A);
+        question_info.choice_b = res->getString(COL_CHOICE_B);
+        question_info.choice_c = res->getString(COL_CHOICE_C);
+        question_info.choice_d = res->getString(COL_CHOICE_D);
+        question_info.correct_answer = res->getString(COL_CORRECT_ANSWER);
+    }
+    
+    delete res;
+    delete pstmt;
+    g_sql_mtx.unlock();
+    
+    return question_info;
+}

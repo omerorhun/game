@@ -29,6 +29,8 @@ typedef struct {
     GameUser user2;
 }Rivals;
 
+class Requests;
+
 class Game {
     public:
     Game();
@@ -46,10 +48,7 @@ class Game {
     GameUser get_opponent(uint64_t uid);
     
     void set_answer(uint64_t uid);
-    static ErrorCodes check_game_request(RequestCodes req_code, std::string answer);
     bool is_answered(uint64_t uid);
-    
-    bool next_question();
     
     // timer
     void timeout_func();
@@ -60,9 +59,10 @@ class Game {
     
     private:
     int _game_uid;
+    uint64_t game_count;
     Rivals _rivals;
-    uint8_t _current_tour;
     uint8_t _current_question;
+    
     Timer<Game> _timer;
     GameState _state;
     std::string _questions;

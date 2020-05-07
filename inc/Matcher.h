@@ -2,6 +2,7 @@
 #define _MATCHER_H_
 
 #include <vector>
+#include <list>
 #include <thread>
 #include <mutex>
 
@@ -27,6 +28,7 @@ class Matcher {
     ~Matcher();
     ErrorCodes add(UserMatchInfo *user);
     void remove(UserMatchInfo *user);
+    void remove(uint64_t uid);
     UserMatchInfo *lookup(uint64_t uid);
     
     
@@ -42,7 +44,7 @@ class Matcher {
     struct ev_loop *_p_loop;
     ev_async _find_match_watcher;
     ev_async _create_game_watcher;
-    std::vector<UserMatchInfo *> _waiting_matches;
+    std::list<UserMatchInfo *> _waiting_matches;
     std::vector<MatchResult> _match_results;
     static void find_match_cb(struct ev_loop *loop, ev_async *watcher, int revents);
     static void match_cb(struct ev_loop *loop, ev_async *watcher, int revents);

@@ -16,7 +16,6 @@ Game::Game(int game_id, Rivals rivals) {
     _rivals.user1 = rivals.user1;
     _rivals.user2 = rivals.user2;
     _state = GAME_WAITING_FOR_ACCEPTIONS;
-    _current_tour = 0;
 }
 
 int Game::get_game_id() {
@@ -54,17 +53,29 @@ bool Game::accept_game(uint64_t uid) {
 }
 
 void Game::start_game() {
-    // get questions from db
-    string tour1 = Questions::get_instance()->get_question(5, _rivals.user1.category);
-    string tour2 = Questions::get_instance()->get_question(5, _rivals.user2.category);
-    string tour3 = Questions::get_instance()->get_question(5, 0);
+    uint8_t categories[3] = {
+        _rivals.user1.category,
+        _rivals.user2.category,
+        0 // TODO: select random category
+    };
     
-    nlohmann::json temp;
-    temp["tour1"].push_back(tour1);
-    temp["tour2"].push_back(tour2);
-    temp["tour3"].push_back(tour3);
+    nlohmann::json tours;
     
-    _questions = temp.dump();
+    for (int i = 0; i < 3; i++) {
+        // get this tour's questions from database by category
+        string tour = Questions::get_instance()->get_question(5, categories[i]);
+        
+        // convert to tour info as json object
+        nlohmann::json tour_json = nlohmann::json::parse(tour);
+        
+        // add category info to every tour info
+        tour_json["category"] = categories[i];
+        
+        // add tour info under "tours" key
+        tours["tours"].push_back(tour_json);
+    }
+    
+    _questions = tours.dump();
     
     _state = GAME_QUESTIONS_READY;
     
@@ -105,12 +116,12 @@ void Game::timeout_func() {
     else if (_rivals.user1.is_resigned) {
         // send notification about timeout to active user
         mlog.log_debug("notification async");
-        Requests::send_notification_async(_rivals.user2.socket, REQ_GAME_OPPONENT_TIMEOUT, "");
+        Requests::send_notification_async(_rivals.user2.socket, Requests::REQ_GAME_OPPONENT_TIMEOUT, "");
     }
     else if (_rivals.user2.is_resigned) {
         // send notification about timeout to active user
         mlog.log_debug("notification async");
-        Requests::send_notification_async(_rivals.user1.socket, REQ_GAME_OPPONENT_TIMEOUT, "");
+        Requests::send_notification_async(_rivals.user1.socket, Requests::REQ_GAME_OPPONENT_TIMEOUT, "");
     }
 }
 
@@ -146,19 +157,20 @@ void Game::set_answer(uint64_t uid) {
 }
 
 void Game::resign(uint64_t uid) {
+    
+    stop_timer();
+    
     if (_rivals.user1.uid == uid) {
         _rivals.user1.is_resigned = true;
         
-        stop_timer();
-        
         // send opponent resigned notification to the opponent
-        Requests::send_notification_async(_rivals.user2.socket, REQ_GAME_OPPONENT_RESIGNED, "");
+        Requests::send_notification_async(_rivals.user2.socket, Requests::REQ_GAME_OPPONENT_RESIGNED, "");
     }
     else {
         _rivals.user2.is_resigned = true;
         
         // send opponent resigned notification to the opponent
-        Requests::send_notification_async(_rivals.user1.socket, REQ_GAME_OPPONENT_RESIGNED, "");
+        Requests::send_notification_async(_rivals.user1.socket, Requests::REQ_GAME_OPPONENT_RESIGNED, "");
     }
 }
 
@@ -167,56 +179,4 @@ bool Game::is_answered(uint64_t uid) {
         return _rivals.user1.is_answered;
     
     return _rivals.user2.is_answered;
-}
-
-ErrorCodes Game::check_game_request(RequestCodes req_code, string data) {
-    nlohmann::json answer_json;
-    if (!nlohmann::json::accept(data)) {
-        return ERR_GAME_WRONG_PACKET;
-    }
-    
-    answer_json = nlohmann::json::parse(data);
-    
-    if (req_code == REQ_GAME_START) {
-        if (answer_json.find("game_id") == answer_json.end()) {
-            return ERR_GAME_WRONG_PACKET;
-        }
-        
-        if (answer_json.find("category") == answer_json.end()) {
-            return ERR_GAME_WRONG_PACKET;
-        }
-    }
-    else if (req_code == REQ_GAME_ANSWER) {
-        if (answer_json.find("game_id") == answer_json.end()) {
-            return ERR_GAME_WRONG_PACKET;
-        }
-        
-        if (answer_json.find("answer") == answer_json.end()) {
-            return ERR_GAME_WRONG_PACKET;
-        }
-    }
-    else if (req_code == REQ_GAME_RESIGN) {
-        if (answer_json.find("game_id") == answer_json.end()) {
-            return ERR_GAME_WRONG_PACKET;
-        }
-    }
-    else if (req_code == REQ_GAME_FINISH) {
-        if (answer_json.find("game_id") == answer_json.end()) {
-            return ERR_GAME_WRONG_PACKET;
-        }
-    }
-    
-    
-    return ERR_SUCCESS;
-}
-
-bool Game::next_question() {
-    _current_question++;
-    if (_current_question == 5) {
-        _current_tour++;
-        _current_question = 0;
-        return true;
-    }
-    
-    return false;
 }

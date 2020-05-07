@@ -28,6 +28,7 @@ class QuestionsDAO {
     
     void insert(QuestionInfo question);
     QuestionInfo get_question_by_id(uint64_t id);
+    QuestionInfo get_random_question(uint8_t category);
     
     private:
     static QuestionsDAO *_ps_instance;

@@ -4,10 +4,10 @@
 #include "Protocol.h"
 #include "Matcher.h"
 #include "Server.h"
-#include "GameService.h"
-
+#include "Game.h"
 #include "errors.h"
 #include "constants.h"
+
 #include <ev.h>
 #include <vector>
 #include <queue>
@@ -16,33 +16,10 @@
 #define REQUEST_HEADER 0x01
 #define ACK 0x01
 #define NACK 0x02
-
 #define GET_ONLINE_USERS_LEN 0
-
 #define MATCH_TIMEOUT 20
 
 const std::string jwt_key = "bjk1903";
-
-typedef enum {
-    REQ_LOGIN,
-    REQ_FB_LOGIN,
-    REQ_COUNT,
-    REQ_LOGOUT,
-    REQ_MATCH,
-    REQ_GET_ONLINE_USERS,
-    REQ_DISCONNECT,
-    REQ_ERROR,
-    REQ_CANCEL_MATCH,
-    REQ_GAME_START,
-    REQ_GAME_ACCEPTED,
-    REQ_GAME_ANSWER,
-    REQ_GAME_OPPONENT_ANSWER,
-    REQ_GAME_QUESTION_COMPLETED,
-    REQ_GAME_RESIGN,
-    REQ_GAME_OPPONENT_RESIGNED,
-    REQ_GAME_OPPONENT_TIMEOUT,
-    REQ_GAME_FINISH
-}RequestCodes;
 
 typedef struct {
   int socket;
@@ -52,6 +29,28 @@ typedef struct {
 class Requests {
   
   public:
+  typedef enum {
+      REQ_LOGIN,
+      REQ_FB_LOGIN,
+      REQ_COUNT,
+      REQ_LOGOUT,
+      REQ_MATCH,
+      REQ_GET_ONLINE_USERS,
+      REQ_DISCONNECT,
+      REQ_ERROR,
+      REQ_CANCEL_MATCH,
+      REQ_GAME_START,
+      REQ_GAME_ACCEPTED,
+      REQ_GAME_ANSWER,
+      REQ_GAME_OPPONENT_ANSWER,
+      REQ_GAME_QUESTION_COMPLETED,
+      REQ_GAME_RESIGN,
+      REQ_GAME_OPPONENT_RESIGNED,
+      REQ_GAME_OPPONENT_TIMEOUT,
+      REQ_GAME_FINISH,
+      REQ_GAME_NOT_ACCEPTED
+  }RequestCodes;
+  
   Requests(int sock);
   ~Requests();
   
@@ -91,7 +90,7 @@ class Requests {
   // match
   ErrorCodes add_to_match_queue(UserMatchInfo *user);
   void remove_from_match_queue(UserMatchInfo *user);
-  void cancel_match(uint64_t uid);
+  void cancel_match(uint64_t uid, int game_id);
   
   // game
   Game *create_game(Rivals rivals);
@@ -99,6 +98,7 @@ class Requests {
   uint64_t get_uid(int socket);
   int get_game_id(uint64_t uid);
   ErrorCodes get_game_answer(std::string data, std::string &answer);
+  static ErrorCodes check_game_request(RequestCodes req_code, std::string answer);
   
   bool check_request_code();
   bool check_length();

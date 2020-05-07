@@ -72,6 +72,9 @@ ErrorCodes RegistryService::sign_in(uint64_t *uid, string access_token) {
         
         RegistryInfo registry = _p_game_dal->get_user_by_fb_id(user_info.fb_id);
         
+        // insert to statistics table
+        _p_game_dal->insert_user_stat(user_info.uid);
+        
         *uid = registry.uid;
         mlog.log_debug("%s registered [%lu]", user_info.name.c_str(), user_info.uid);
     }

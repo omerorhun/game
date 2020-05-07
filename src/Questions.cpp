@@ -24,14 +24,13 @@ Questions *Questions::get_instance() {
     return _ps_instance;
 }
 
-string Questions::get_question(int count, uint8_t type) {
+string Questions::get_question(int count, uint8_t category) {
     nlohmann::json ret;
     
     for (int i = 0; i < count; i++) {
         // pick random question
-        int idx = rand()%QUESTION_COUNT + 1;
-        
-        QuestionInfo qi = GameDAL::get_instance()->get_question_by_id(idx);
+        category = 1; // temp: test category
+        QuestionInfo qi = GameDAL::get_instance()->get_random_question(category);
         
         nlohmann::json qi_json;
         qi_json["question"] = qi.question;

@@ -1,6 +1,7 @@
 #include "Matcher.h"
 #include "Requests.h"
 #include "RegistryService.h"
+#include "GameService.h"
 
 #include <ev.h>
 
@@ -70,18 +71,18 @@ void Matcher::find_match_cb(struct ev_loop *loop, ev_async *watcher, int revents
         int op_idx = rand()%(remaining - 1) + 1;
         
         MatchResult result;
-        result.user1 = *matcher->_waiting_matches[0];
-        result.user2 = *matcher->_waiting_matches[op_idx];
+        result.user1 = **matcher->_waiting_matches.begin();
+        result.user2 = **next(matcher->_waiting_matches.begin(), op_idx);
         
-        delete matcher->_waiting_matches[0];
-        delete matcher->_waiting_matches[op_idx];
+        delete *matcher->_waiting_matches.begin();
+        delete *next(matcher->_waiting_matches.begin(), op_idx);
         
         g_match_result_mtx.lock();
         matcher->_match_results.push_back(result);
         g_match_result_mtx.unlock();
         
         // first, remove opponent's uid from the list
-        matcher->_waiting_matches.erase(matcher->_waiting_matches.begin() + op_idx);
+        matcher->_waiting_matches.erase(next(matcher->_waiting_matches.begin(), op_idx));
         
         // then, remove this uid from the list
         matcher->_waiting_matches.erase(matcher->_waiting_matches.begin());
@@ -113,8 +114,11 @@ void Matcher::match_cb(struct ev_loop *loop, ev_async *watcher, int revents) {
     Game *game = GameService::get_instance()->create_game(riv);
     // is game id must be saved?
     
+    mlog.log_debug("before timer");
     game->set_timer();
+    mlog.log_debug("mid timer");
     game->start_timer();
+    mlog.log_debug("after timer");
     
     // match success
     mlog.log_debug("%lu matched with %lu", result.user1.uid, result.user2.uid);
@@ -136,8 +140,8 @@ void Matcher::match_cb(struct ev_loop *loop, ev_async *watcher, int revents) {
     user2_json["url"] = user2_info.picture_url;
     user2_json["game_id"] = game->get_game_id();
     
-    Requests::send_notification_async(riv.user1.socket, REQ_MATCH, user2_json.dump());
-    Requests::send_notification_async(riv.user2.socket, REQ_MATCH, user1_json.dump());
+    Requests::send_notification_async(riv.user1.socket, Requests::REQ_MATCH, user2_json.dump());
+    Requests::send_notification_async(riv.user2.socket, Requests::REQ_MATCH, user1_json.dump());
 }
 
 void Matcher::start_loop(struct ev_loop *loop) {
@@ -155,15 +159,16 @@ Matcher *Matcher::get_instance() {
 
 ErrorCodes Matcher::add(UserMatchInfo *user) {
     UserMatchInfo *res = lookup(user->uid);
+    mlog.log_debug("matcher add");
     if (res != NULL) {
         return ERR_MATCH_WAITING;
     }
-    
+    mlog.log_debug("matcher add");
     // add user to the waiting list
     g_waiting_list_mtx.lock();
     _waiting_matches.push_back(user);
     g_waiting_list_mtx.unlock();
-    
+    mlog.log_debug("matcher add");
     // send event to find match listener
     if (ev_async_pending(&_find_match_watcher) == false)
         ev_async_send(_p_loop, &_find_match_watcher);
@@ -172,9 +177,19 @@ ErrorCodes Matcher::add(UserMatchInfo *user) {
 }
 
 void Matcher::remove(UserMatchInfo *user) {
-    //auto it = find(_waiting_matches.begin(), _waiting_matches.end(), user);
     for (auto it = _waiting_matches.begin(); it != _waiting_matches.end(); it++) {
         if ((*it)->uid == user->uid) {
+            delete *it;
+            _waiting_matches.erase(it);
+            break;
+        }
+    }
+}
+
+void Matcher::remove(uint64_t uid) {
+    for (auto it = _waiting_matches.begin(); it != _waiting_matches.end(); it++) {
+        if ((*it)->uid == uid) {
+            delete &*it;
             _waiting_matches.erase(it);
             break;
         }
@@ -183,14 +198,14 @@ void Matcher::remove(UserMatchInfo *user) {
 
 UserMatchInfo *Matcher::lookup(uint64_t uid) {
     UserMatchInfo *ret = NULL;
-    
+    mlog.log_debug("matcher lookup");
     for (auto it : _waiting_matches) {
         if (it->uid == uid) {
             ret = it;
             break;
         }
     }
-    
+    mlog.log_debug("matcher lookup");
     return ret;
 }
 
@@ -208,7 +223,7 @@ void Matcher::timeout_func(uint64_t uid) {
     
     mlog.log_debug("async notification sending");
     mlog.log_debug("socket: %d", socket);
-    Requests::send_notification_async(socket, REQ_ERROR, string(&data));
+    Requests::send_notification_async(socket, Requests::REQ_ERROR, string(&data));
     mlog.log_debug("async notification sent");
 }
 
@@ -216,15 +231,25 @@ void Matcher::watchdog() {
     
     while (1) {
         mlog.log_debug("watchdog loop");
-        for (auto it = _waiting_matches.begin(); it < _waiting_matches.end(); it++) {
-            g_waiting_list_mtx.lock();
+        bool is_last = false;
+        
+        g_waiting_list_mtx.lock();
+        for (auto it = _waiting_matches.begin(); it != _waiting_matches.end(); it++) {
+            
             if (time(NULL) > ((*it)->start_time + MATCH_TIMEOUT)) {
-                mlog.log_debug("%ld - %ld - %ld", (*it)->start_time, MATCH_TIMEOUT, time(NULL));
-                mlog.log_debug("match timeout");
+                mlog.log_debug("match timeout %ld - %ld - %ld", 
+                                        (*it)->start_time, MATCH_TIMEOUT, time(NULL));
+                
+                if (next(it) == _waiting_matches.end())
+                    is_last = true;
+                
                 timeout_func((*it)->uid);
+                
+                if (is_last)
+                    break;
             }
-            g_waiting_list_mtx.unlock();
         }
+        g_waiting_list_mtx.unlock();
         mlog.log_debug("watchdog loop end");
         sleep(15);
     }

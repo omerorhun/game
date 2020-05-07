@@ -2,17 +2,18 @@
 #include <stdlib.h>
 
 #include "GameService.h"
+#include "GameDAL.h"
 #include "debug.h"
+#include "json.hpp"
 
 using namespace std;
 
-vector<Game> GameService::_games;
-int GameService::_s_game_count = 0;
 GameService *GameService::_ps_instance = NULL;
 
 GameService::GameService() {
     if (_ps_instance == NULL) {
         _ps_instance = this;
+        _game_id_offset = 0;
     }
 }
 
@@ -25,16 +26,18 @@ GameService *GameService::get_instance() {
 }
 
 Game *GameService::create_game(Rivals rivals) {
-    mlog.log_info("create game");
+    mlog.log_info("create game %lu - %lu", rivals.user1.uid, rivals.user2.uid);
     
-    mlog.log_debug("%lu - %lu", rivals.user1.uid, rivals.user2.uid);
-    
-    // if not create new game
     // TODO: determine appropriate game id
-    Game game(_s_game_count + 1, rivals);
+    // TODO: add mutex while incrementing offset
+    _mtx_add.lock();
+    _game_id_offset++;
+    Game game(_game_id_offset, rivals);
     _games.push_back(game);
+    Game *p_game = &_games.back();
+    _mtx_add.unlock();
     
-    return &_games[_games.size()];
+    return p_game;
 }
 
 ErrorCodes GameService::accept_game(int game_id, uint64_t uid) {
@@ -43,9 +46,9 @@ ErrorCodes GameService::accept_game(int game_id, uint64_t uid) {
 }
 
 ErrorCodes GameService::remove_game(int game_id) {
-    for (int i = 0; i < _games.size(); i++) {
-        if (_games[i].get_game_id() == game_id) {
-            _games.erase(_games.begin() + i);
+    for (auto it = _games.begin(); it != _games.end(); it++) {
+        if (it->get_game_id() == game_id) {
+            _games.erase(it);
             break;
         }
     }
@@ -53,8 +56,36 @@ ErrorCodes GameService::remove_game(int game_id) {
     return ERR_SUCCESS;
 }
 
-ErrorCodes GameService::finish_game(int game_id) {
-    return remove_game(game_id);
+ErrorCodes GameService::finish_game(Game *game, string results) {
+    mlog.log_debug("results debug");
+    GameDAL *dal = GameDAL::get_instance();
+    Rivals riv = game->get_rivals();
+    
+    nlohmann::json results_json = nlohmann::json::parse(results);
+    uint64_t winner = results_json["winner"];
+    nlohmann::json user1 = results_json["users"].at(0);
+    nlohmann::json user2 = results_json["users"].at(1);
+    
+    UserStatisticsInfo usi;
+    uint8_t category;
+    for (int i = 0; i < 3; i++) {
+        
+        usi.uid = user1["uid"];
+        usi.right = user1["tours"].at(i)["right"];
+        usi.wrong = user1["tours"].at(i)["wrong"];
+        category = user1["tours"].at(i)["category"];
+        GameDAL::get_instance()->update_user_stat(usi.uid, category, usi);
+        
+        usi.uid = user2["uid"];
+        usi.right = user2["tours"].at(i)["right"];
+        usi.wrong = user2["tours"].at(i)["wrong"];
+        category = user2["tours"].at(i)["category"];
+        GameDAL::get_instance()->update_user_stat(usi.uid, category, usi);
+    }
+    
+    mlog.log_debug("users' statitsics updated");
+    
+    return remove_game(game->get_game_id());
 }
 
 ErrorCodes GameService::finish_game_with_uid(uint64_t uid) {
@@ -70,11 +101,12 @@ ErrorCodes GameService::finish_game_with_uid(uint64_t uid) {
 Game *GameService::lookup_by_uid(uint64_t uid) {
     Game *game = NULL;
     
-    for (int i = 0; i < _games.size(); i++) {
-        Rivals riv = _games[i].get_rivals();
+    for (auto it = _games.begin(); it != _games.end(); it++) {
+        Rivals riv = it->get_rivals();
         if ((riv.user1.uid == uid) || 
-            (riv.user2.uid == uid)) {
-            game = &_games[i];
+            (riv.user2.uid == uid))
+        {
+            game = &*it;
             break;
         }
     }
@@ -84,10 +116,9 @@ Game *GameService::lookup_by_uid(uint64_t uid) {
 
 Game *GameService::lookup(int game_id) {
     Game *game = NULL;
-    
-    for (int i = 0; i < _games.size(); i++) {
-        if (_games[i].get_game_id() == game_id) {
-            game = &_games[i];
+    for (auto it = _games.begin(); it != _games.end(); it++) {
+        if (it->get_game_id() == game_id) {
+            game = &*it;
             break;
         }
     }

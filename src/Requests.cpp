@@ -4,6 +4,7 @@
 
 #include "Requests.h"
 #include "RegistryService.h"
+#include "GameService.h"
 #include "Jwt.h"
 #include "Protocol.h"
 #include "utilities.h"
@@ -94,7 +95,8 @@ ErrorCodes Requests::get_request() {
 ErrorCodes Requests::handle_request() {
     ErrorCodes ret = get_request();
     if (ret == ERR_CONNECTION) {
-        mlog.log_error("Client disconnected");
+        mlog.log_error("Client disconnected (uid: %lu)", get_uid(socket));
+        
         logout(get_uid(socket));
         
         // TODO: if matched, send notification to opponent. maybe with event
@@ -153,14 +155,13 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         // TODO: Add all facebook errors
         switch (ret) {
             case ERR_SUCCESS:
+            {
                 set_request_code(REQ_FB_LOGIN);
                 set_token(uid);
-                ClientConnectionInfo user_conn;
-                user_conn.socket = socket;
-                user_conn.uid = uid;
-                
+                ClientConnectionInfo user_conn = {uid, socket};
                 login(user_conn);
                 break;
+            }
             case ERR_FB_UNKNOWN:
             case ERR_FB_INVALID_ACCESS_TOKEN:
                 mlog.log_error("fb error");
@@ -246,27 +247,33 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         add_data(&data, 1);
     }
     else if (req_code == REQ_CANCEL_MATCH) {
-        if (indata.size() != 0) {
-            mlog.log_error("size: %d", (int)indata.size());
-            ret = ERR_REQ_WRONG_LENGTH;
+        ret = check_game_request(REQ_CANCEL_MATCH, indata);
+        if (ret != ERR_SUCCESS) {
             goto L_ERROR;
         }
         
+        nlohmann::json data_json = nlohmann::json::parse(indata);
+        int game_id = data_json["game_id"];
+        Game *game = GameService::get_instance()->lookup(game_id);
+        GameUser op = game->get_opponent(uid);
+        
         // remove user from match queue
-        cancel_match(uid);
+        cancel_match(uid, game_id);
+        
+        // TEST: send notification to opponent about cancellation
+        add_notification(op.socket, REQ_GAME_NOT_ACCEPTED, "");
         
         set_request_code(REQ_CANCEL_MATCH);
         uint8_t data = ACK;
         add_data(&data, 1);
     }
     else if(req_code == REQ_GAME_START) {
-        ret = Game::check_game_request(REQ_GAME_START, indata);
+        ret = check_game_request(REQ_GAME_START, indata);
         if (ret != ERR_SUCCESS) {
             goto L_ERROR;
         }
         
         nlohmann::json data_json = nlohmann::json::parse(indata);
-        
         int game_id = data_json["game_id"];
         Game *game = game = GameService::get_instance()->lookup(game_id);
         // get game id from indata
@@ -298,8 +305,7 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         add_data(&data, 1);
     }
     else if (req_code == REQ_GAME_ANSWER) {
-        // check data and get answer
-        ret = Game::check_game_request(REQ_GAME_ANSWER, indata);
+        ret = check_game_request(REQ_GAME_ANSWER, indata);
         if (ret != ERR_SUCCESS) {
             // wrong packet
             mlog.log_error("check answer error: %d", ret);
@@ -331,26 +337,20 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         // add game answer request to the queue for the opponent user
         mlog.log_debug("op.socket: %d", op.socket);
         add_notification(op.socket, REQ_GAME_OPPONENT_ANSWER, indata);
-        mlog.log_debug("notification added");
         
-        mlog.log_debug("check timer: %ld", game->check_timer());
-        // TEST: if both of rivals has answered current question
+        // if both of rivals has answered current question
         // send question complete notification both of them
         if (!game->check_timer()) {
             mlog.log_debug("both of rivals answered");
             
             // for opponent
             add_notification(op.socket, REQ_GAME_QUESTION_COMPLETED, "");
-            mlog.log_debug("notification added");
             
             // for this user
             add_notification(socket, REQ_GAME_QUESTION_COMPLETED, "");
-            mlog.log_debug("notification added");
             
-            // TEST: start a timer to check if this question has timed out
-            // timer must be in the game object
+            // start a timer to check if this question has timed out
             game->start_timer();
-            mlog.log_debug("timer started");
         }
         
         // send ack to this user
@@ -359,7 +359,7 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         add_data(&outdata, 1);
     }
     else if (req_code == REQ_GAME_RESIGN) {
-        ret = Game::check_game_request(REQ_GAME_RESIGN, indata);
+        ret = check_game_request(REQ_GAME_RESIGN, indata);
         if (ret != ERR_SUCCESS) {
             goto L_ERROR;
         }
@@ -368,7 +368,6 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         
         int game_id = data_json["game_id"];
         Game *game = GameService::get_instance()->lookup(game_id);
-        
         if (game == NULL) {
             ret = ERR_GAME_NOT_FOUND;
             goto L_ERROR;
@@ -377,23 +376,25 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         // mark this user as resigned on game object
         game->resign(uid);
         
+        GameService::get_instance()->remove_game(game_id);
+        
         set_request_code(REQ_GAME_RESIGN);
         uint8_t outdata = ACK;
         add_data(&outdata, 1);
     }
     else if (req_code == REQ_GAME_FINISH) {
-        ret = Game::check_game_request(REQ_GAME_RESIGN, indata);
+        ret = check_game_request(REQ_GAME_RESIGN, indata);
         if (ret != ERR_SUCCESS) {
             goto L_ERROR;
         }
         
         nlohmann::json data_json = nlohmann::json::parse(indata);
-        
         int game_id = data_json["game_id"];
+        string results = data_json["results"].dump();
         Game *game = GameService::get_instance()->lookup(game_id);
         // release game object and its content (timer etc.)
         if (game != NULL) {
-            GameService::get_instance()->finish_game(game->get_game_id());
+            GameService::get_instance()->finish_game(game, results);
             mlog.log_debug("game finished");
         }
         
@@ -429,12 +430,7 @@ void Requests::send_notification_async(int socket, RequestCodes req_code, string
     packet.set_request_code(req_code);
     packet.add_data(data);
     packet.set_crc();
-    //usleep(500000); // 500ms delay, temporary
     packet.send_packet(socket);
-}
-
-ErrorCodes Requests::get_game_answer(string data, string &answer) {
-    
 }
 
 void Requests::prepare_error_packet(ErrorCodes err) {
@@ -482,11 +478,11 @@ void Requests::login(ClientConnectionInfo client_conn) {
 
 void Requests::logout(uint64_t uid) {
     // if match request belongs to user exists..
-    cancel_match(uid);
+    Matcher::get_instance()->remove(uid);
     
     // remove game if exists
     // TODO: user must be resign. do not remove game, resign user.
-    Game *game = GameService::get_instance()->lookup(uid);
+    Game *game = GameService::get_instance()->lookup_by_uid(uid);
     if (game != NULL) {
         game->resign(uid);
     }
@@ -496,7 +492,6 @@ void Requests::logout(uint64_t uid) {
 }
 
 ErrorCodes Requests::add_to_match_queue(UserMatchInfo *user) {
-    
     return Matcher::get_instance()->add(user);
 }
 
@@ -504,10 +499,12 @@ void Requests::remove_from_match_queue(UserMatchInfo *user) {
     Matcher::get_instance()->remove(user);
 }
 
-void Requests::cancel_match(uint64_t uid) {
-    UserMatchInfo *user = Matcher::get_instance()->lookup(uid);
-    if (user != NULL)
-        Matcher::get_instance()->remove(user);
+void Requests::cancel_match(uint64_t uid, int game_id) {
+    // remove match request
+    Matcher::get_instance()->remove(uid);
+    
+    // remove created game
+    GameService::get_instance()->remove_game(game_id);
 }
 
 Game *Requests::create_game(Rivals rivals) {
@@ -524,4 +521,33 @@ uint64_t Requests::get_uid(int socket) {
 
 int Requests::get_game_id(uint64_t uid) {
     return GameService::get_instance()->get_game_id(uid);
+}
+
+ErrorCodes Requests::check_game_request(RequestCodes req_code, string data) {
+    bool ret = false;
+    nlohmann::json answer_json;
+    
+    if (!nlohmann::json::accept(data))
+        return ERR_GAME_WRONG_PACKET;
+    
+    answer_json = nlohmann::json::parse(data);
+    switch (req_code) {
+        case Requests::REQ_GAME_START:
+            ret = answer_json.contains("game_id") && answer_json.contains("category");
+            break;
+        case Requests::REQ_GAME_ANSWER:
+            ret = answer_json.contains("game_id") && answer_json.contains("answer");
+            break;
+        case Requests::REQ_CANCEL_MATCH:
+        case Requests::REQ_GAME_RESIGN:
+            ret = answer_json.contains("game_id");
+            break;
+        case Requests::REQ_GAME_FINISH:
+            ret = answer_json.contains("game_id") && answer_json.contains("results");
+            break;
+    }
+    
+    if (!ret) return ERR_GAME_WRONG_PACKET;
+    
+    return ERR_SUCCESS;
 }

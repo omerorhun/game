@@ -7,7 +7,7 @@ OBJS= ./obj/main.o ./obj/Server.o ./obj/RegistryService.o ./obj/utilities.o
 OBJS+= ./obj/Protocol.o ./obj/Requests.o ./obj/Jwt.o ./obj/base64.o
 OBJS+= ./obj/Matcher.o ./obj/Game.o ./obj/GameService.o ./obj/Questions.o
 OBJS+= ./obj/debug.o ./obj/GameDAL.o ./obj/RegistryDAO.o ./obj/Timer.o
-OBJS+= ./obj/QuestionsDAO.o
+OBJS+= ./obj/QuestionsDAO.o ./obj/UserStatisticsDAO.o
 
 all: server
 
@@ -17,7 +17,7 @@ image:
 	@echo "linking $@"
 	@$(CXX) $(CFLAGS) $(OBJS) $(LIBS) -o server
 
-build: main RegistryService Server Jwt base64 Protocol Requests utilities Matcher Game GameService Questions debug GameDAL RegistryDAO Timer QuestionsDAO
+build: main RegistryService Server Jwt base64 Protocol Requests utilities Matcher Game GameService Questions debug GameDAL RegistryDAO Timer QuestionsDAO UserStatisticsDAO
 
 main: ./src/main.cpp
 	@echo "compiling $@"
@@ -86,6 +86,10 @@ QuestionsDAO: ./src/QuestionsDAO.cpp ./inc/QuestionsDAO.h
 Timer: ./src/Timer.cpp ./inc/Timer.h
 	@echo "compiling $@"
 	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/Timer.cpp -o ./obj/Timer.o
+
+UserStatisticsDAO: ./src/UserStatisticsDAO.cpp ./inc/UserStatisticsDAO.h
+	@echo "compiling $@"
+	@$(CXX) $(CFLAGS) -c -g -I"./inc" ./src/UserStatisticsDAO.cpp -o ./obj/UserStatisticsDAO.o
 	
 incver:
 	@./version/incver.sh
