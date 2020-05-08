@@ -163,12 +163,14 @@ void Game::resign(uint64_t uid) {
     if (_rivals.user1.uid == uid) {
         _rivals.user1.is_resigned = true;
         
+        mlog.log_debug("to %lu: socket: %d", _rivals.user2.uid, _rivals.user2.socket);
         // send opponent resigned notification to the opponent
         Requests::send_notification_async(_rivals.user2.socket, Requests::REQ_GAME_OPPONENT_RESIGNED, "");
     }
     else {
         _rivals.user2.is_resigned = true;
         
+        mlog.log_debug("to %lu: socket: %d", _rivals.user1.uid, _rivals.user1.socket);
         // send opponent resigned notification to the opponent
         Requests::send_notification_async(_rivals.user1.socket, Requests::REQ_GAME_OPPONENT_RESIGNED, "");
     }

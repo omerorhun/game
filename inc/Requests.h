@@ -7,6 +7,7 @@
 #include "Game.h"
 #include "errors.h"
 #include "constants.h"
+#include "json.hpp"
 
 #include <ev.h>
 #include <vector>
@@ -99,6 +100,7 @@ class Requests {
   int get_game_id(uint64_t uid);
   ErrorCodes get_game_answer(std::string data, std::string &answer);
   static ErrorCodes check_game_request(RequestCodes req_code, std::string answer);
+  static bool check_result_json(nlohmann::json results);
   
   bool check_request_code();
   bool check_length();

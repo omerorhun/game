@@ -66,9 +66,10 @@ ErrorCodes GameService::finish_game(Game *game, string results) {
     nlohmann::json user1 = results_json["users"].at(0);
     nlohmann::json user2 = results_json["users"].at(1);
     
+    uint8_t tour_count = user1["tours"].size();
     UserStatisticsInfo usi;
     uint8_t category;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < tour_count; i++) {
         
         usi.uid = user1["uid"];
         usi.right = user1["tours"].at(i)["right"];

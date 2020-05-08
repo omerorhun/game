@@ -35,20 +35,12 @@ void Requests::send_response() {
     _out_packet.send_packet(socket);
     
     mlog.log_debug("notification count: %d", (int)_notifications.size());
-    if (_notifications.size()) {
-        mlog.log_debug("notifications sending... (%d)", (int)_notifications.size());
-    }
-    useconds_t usec = 500000;
-    //usleep(usec);
     
     // send notifications that relevant with this request
     while (_notifications.size() != 0) {
-        mlog.log_debug("1remaining notification: %d", _notifications.size());
-        mlog.log_debug("notification socket: %d", _notifications.front().socket);
         _notifications.front().packet.send_packet(_notifications.front().socket);
         _notifications.pop();
-        mlog.log_debug("2remaining notification: %d", _notifications.size());
-        //usleep(usec);
+
     }
 }
 
@@ -188,7 +180,6 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
     else if (req_code == REQ_GET_ONLINE_USERS) {
         // TODO: test this request
         if (indata.size() != 0) {
-            mlog.log_debug("size: %d", (int)indata.size());
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
         }
@@ -220,7 +211,6 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
     }
     else if (req_code == REQ_MATCH) {
         if (indata.size() != 0) {
-            mlog.log_error("size: %d", (int)indata.size());
             ret = ERR_REQ_WRONG_LENGTH;
             goto L_ERROR;
         }
@@ -383,7 +373,7 @@ ErrorCodes Requests::interpret_request(uint64_t uid, RequestCodes req_code, stri
         add_data(&outdata, 1);
     }
     else if (req_code == REQ_GAME_FINISH) {
-        ret = check_game_request(REQ_GAME_RESIGN, indata);
+        ret = check_game_request(REQ_GAME_FINISH, indata);
         if (ret != ERR_SUCCESS) {
             goto L_ERROR;
         }
@@ -525,29 +515,94 @@ int Requests::get_game_id(uint64_t uid) {
 
 ErrorCodes Requests::check_game_request(RequestCodes req_code, string data) {
     bool ret = false;
-    nlohmann::json answer_json;
+    nlohmann::json rx_json;
     
     if (!nlohmann::json::accept(data))
         return ERR_GAME_WRONG_PACKET;
     
-    answer_json = nlohmann::json::parse(data);
+    rx_json = nlohmann::json::parse(data);
     switch (req_code) {
-        case Requests::REQ_GAME_START:
-            ret = answer_json.contains("game_id") && answer_json.contains("category");
+        case REQ_GAME_START:
+            if (rx_json.contains("game_id") && rx_json.contains("category"))
+                if (rx_json["game_id"].is_number() && rx_json["category"].is_number())
+                    return ERR_SUCCESS;
             break;
-        case Requests::REQ_GAME_ANSWER:
-            ret = answer_json.contains("game_id") && answer_json.contains("answer");
+        case REQ_GAME_ANSWER:
+            if (rx_json.contains("game_id") && rx_json.contains("answer"))
+                if (rx_json["game_id"].is_number() && rx_json["answer"].is_string())
+                    return ERR_SUCCESS;
             break;
-        case Requests::REQ_CANCEL_MATCH:
-        case Requests::REQ_GAME_RESIGN:
-            ret = answer_json.contains("game_id");
+        case REQ_CANCEL_MATCH:
+        case REQ_GAME_RESIGN:
+            if (rx_json.contains("game_id"))
+                if (rx_json["game_id"].is_number())
+                    return ERR_SUCCESS;
             break;
-        case Requests::REQ_GAME_FINISH:
-            ret = answer_json.contains("game_id") && answer_json.contains("results");
+        case REQ_GAME_FINISH:
+            if (rx_json.contains("game_id") && rx_json.contains("results"))
+                if (rx_json["game_id"].is_number() && check_result_json(rx_json["results"]))
+                    return ERR_SUCCESS;
             break;
     }
     
-    if (!ret) return ERR_GAME_WRONG_PACKET;
+    return ERR_GAME_WRONG_PACKET;
+}
+
+bool Requests::check_result_json(nlohmann::json results) {
+    if (results.contains("users") &&
+        results.contains("winner"))
+    {
+        if (results["users"].is_array() &&
+            results["winner"].is_number())
+        {
+            nlohmann::json users = results["users"];
+            for (int j = 0; j < users.size(); j++) {
+                if (users.at(j).contains("tours") && 
+                    users.at(j).contains("uid"))
+                {
+                    if (users.at(j)["uid"].is_number() && 
+                        users.at(j)["tours"].is_array())
+                    {
+                        nlohmann::json tours = users.at(j)["tours"];
+                        for (int i = 0; i < tours.size(); i++) {
+                            if (tours.at(i).contains("category") &&
+                                tours.at(i).contains("right") &&
+                                tours.at(i).contains("wrong"))
+                            {
+                                if (!(tours.at(i)["category"].is_number() &&
+                                    tours.at(i)["right"].is_number() &&
+                                    tours.at(i)["wrong"].is_number()))
+                                {
+                                    // if one of these three keys is not a number, return false
+                                    return false;
+                                }
+                            }
+                            else {
+                                // if one of these three keys does not exists
+                                return false;
+                            }
+                        }
+                    }
+                    else {
+                        // if 'uid' is not a number or 'tours' is not an array
+                        return false;
+                    }
+                }
+                else {
+                    // if 'uid' or 'tours' does not exists
+                    return false;
+                }
+            }
+        }
+        else {
+            // if 'winner' is not a number or 'users' is not an array
+            return false;
+        }
+    }
+    else {
+        // if 'winner or 'users' does not exists
+        return false;
+    }
     
-    return ERR_SUCCESS;
+    return true;
 }

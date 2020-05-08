@@ -214,16 +214,23 @@ void Dlogger::log_dhex(int level, const char *header, char *buffer, uint16_t len
         }
         
         if (i == len - 1) {
-            uint16_t rem = 0x10 - (i+1) % 0x10;
+            uint16_t rem = 0x10 - ((i+1) % 0x10);
             if (rem == 0x10)
                 break;
             
-            for (uint16_t j = 0; j < rem; j++) fprintf(outstream, "00 ");
-            for (uint16_t j = i - 0x10 + rem; j < i; j++) {
-                if (isprint((int)buffer[j])) fputc(buffer[j], outstream);
-                else fputc('.', outstream);
+            for (uint16_t j = 0; j < rem; j++)
+              fprintf(outstream, "00 ");
+            
+            for (uint16_t j = i - (i % 0x10); j <= i; j++) {
+                if (isprint((int)buffer[j]))
+                  fputc(buffer[j], outstream);
+                else
+                  fputc('.', outstream);
             }
-            for (uint16_t j = 0; j < rem; j++) fputc('.', outstream);
+            
+            for (uint16_t j = 0; j < rem; j++)
+              fputc('.', outstream);
+            
             fputs("\n", outstream);
         }
     }
